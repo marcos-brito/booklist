@@ -1,0 +1,8 @@
+{
+    "workspace": [
+        "packages/booklist-web"
+    ],
+    "fmt": {
+        "indentWidth": 4
+    }
+}
