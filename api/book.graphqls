@@ -1,0 +1,22 @@
+type Book {
+    id: ID!
+    title: String!
+    isbn: String!
+    publishedAt: Time!
+    pageCount: Int!
+    edition: Int!
+    needsApproval: Boolean!
+    authors: [Author!]!
+    publisher: Publisher!
+}
+
+type Author {
+    id: ID!
+    name: String!
+    birthDay: Time!
+}
+
+type Publisher {
+    id: ID!
+    name: String!
+}

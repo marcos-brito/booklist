@@ -1,0 +1,43 @@
+scalar Time
+
+type User {
+    id: ID!
+    name: String!
+    email: String!
+    settings: Settings!
+    lists: [List!]!
+    collection: [CollectionItem!]!
+}
+
+type Settings {
+    private: Boolean!
+    showName: Boolean!
+    showStats: Boolean!
+    showCollection: Boolean!
+    showListsFollows: Boolean!
+    showAuthorsFollows: Boolean!
+}
+
+type List {
+    id: ID!
+    name: String!
+    description: String
+    books: [Book!]!
+}
+
+type CollectionItem {
+    id: ID!
+    book: Book!
+    status: Status!
+    createdAt: Time!
+    startedAt: Time
+    finishedAt: Time
+}
+ 
+enum Status {
+    TO_READ
+    ON_HOLD
+    DROPPED
+    READING
+    READ
+}
