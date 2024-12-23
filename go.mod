@@ -4,6 +4,8 @@ go 1.23.3
 
 require (
 	github.com/99designs/gqlgen v0.17.56
+	github.com/joho/godotenv v1.5.1
+	github.com/ory/client-go v1.15.16
 	github.com/vektah/gqlparser/v2 v2.5.19
 	gorm.io/driver/postgres v1.5.11
 	gorm.io/gorm v1.25.12
