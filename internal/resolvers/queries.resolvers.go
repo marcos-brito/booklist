@@ -6,14 +6,36 @@ package resolvers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
+	"github.com/marcos-brito/booklist/internal/auth"
 	"github.com/marcos-brito/booklist/internal/models"
+	"github.com/marcos-brito/booklist/internal/store"
 )
 
 // Me is the resolver for the me field.
-func (r *queryResolver) Me(ctx context.Context) (*models.User, error) {
-	panic(fmt.Errorf("not implemented: Me - me"))
+func (r *queryResolver) Me(ctx context.Context) (*models.Profile, error) {
+	session, err := auth.GetSession(ctx)
+	if err != nil || session == nil {
+		return nil, nil
+	}
+
+	profile, err := store.NewUserStore(store.DB).FindProfile(session.Identity.Id)
+	if err != nil {
+		fmt.Println("\n", err)
+		return nil, errors.New(InternalServerError)
+	}
+
+	ident, err := auth.ParseIdentity(session.Identity.Traits)
+	if err != nil {
+		return nil, errors.New(InternalServerError)
+	}
+
+	profile.Name = ident.Name
+	profile.Email = ident.Email
+
+	return profile, nil
 }
 
 // Query returns QueryResolver implementation.
