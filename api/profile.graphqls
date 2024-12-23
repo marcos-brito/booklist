@@ -1,7 +1,7 @@
 scalar Time
 
-type User {
-    id: ID!
+type Profile {
+    uuid: ID!
     name: String!
     email: String!
     settings: Settings!
@@ -33,7 +33,7 @@ type CollectionItem {
     startedAt: Time
     finishedAt: Time
 }
- 
+
 enum Status {
     TO_READ
     ON_HOLD

@@ -6,18 +6,24 @@ import (
 	"gorm.io/gorm"
 )
 
-type User struct {
+type Profile struct {
 	gorm.Model
-	Name        string
-	Email       string
-	Settings    Settings
-    Lists       []List
-    Collection []CollectionItem
+	// Comes from Ory
+	UserUUID   string
+	Name       string `gorm:"-:all"`
+	Email      string `gorm:"-:all"`
+	Settings   Settings
+	Lists      []List
+	Collection []CollectionItem
+}
+
+func (p *Profile) UUID() string {
+	return p.UserUUID
 }
 
 type Settings struct {
 	gorm.Model
-    UserID uint
+	ProfileID          uint
 	Private            bool
 	ShowName           bool
 	ShowStats          bool
@@ -27,44 +33,44 @@ type Settings struct {
 }
 
 type List struct {
-    gorm.Model
-    UserID uint
-    Name string
-    Description string
-    Books []Book `gorm:"many2many:list_books;"`
+	gorm.Model
+	ProfileID   uint
+	Name        string
+	Description string
+	Books       []Book `gorm:"many2many:list_books;"`
 }
 
 type CollectionItem struct {
-    gorm.Model
-    UserID uint
-    BookID uint
-    Book Book
-    Status Status
-    StartedAt time.Time
-    FinishedAt time.Time
+	gorm.Model
+	ProfileID  uint
+	BookID     uint
+	Book       Book
+	Status     Status
+	StartedAt  time.Time
+	FinishedAt time.Time
 }
 
 type Book struct {
-    gorm.Model
-    Title string
-    ISBN string
-    PublishedAt time.Time
-    PageCount int
-    Edition int
-    NeedsApproval bool
-    Authors[] *Author `gorm:"many2many:book_authors;"`
-    PublisherID uint
-    Publisher Publisher
+	gorm.Model
+	Title         string
+	ISBN          string
+	PublishedAt   time.Time
+	PageCount     int
+	Edition       int
+	NeedsApproval bool
+	Authors       []*Author `gorm:"many2many:book_authors;"`
+	PublisherID   uint
+	Publisher     Publisher
 }
 
 type Author struct {
-    gorm.Model
-    Name string
-    BirthDay time.Time
-    Books[] *Book `gorm:"many2many:book_authors;"`
+	gorm.Model
+	Name     string
+	BirthDay time.Time
+	Books    []*Book `gorm:"many2many:book_authors;"`
 }
 
 type Publisher struct {
-    gorm.Model
-    Name string
+	gorm.Model
+	Name string
 }

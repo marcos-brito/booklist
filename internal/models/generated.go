@@ -8,6 +8,9 @@ import (
 	"strconv"
 )
 
+type Mutation struct {
+}
+
 type Query struct {
 }
 
