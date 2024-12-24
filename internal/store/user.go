@@ -15,7 +15,7 @@ func NewUserStore(db *gorm.DB) *UserStore {
 
 func (us *UserStore) FindProfile(uuid string) (*models.Profile, error) {
 	profile := &models.Profile{}
-	res := us.DB.Debug().Where(models.Profile{UserUUID: uuid}).
+	res := us.DB.Where(models.Profile{UserUUID: uuid}).
 		Attrs(models.Profile{Settings: models.Settings{Private: true}}).
 		Preload("Settings").Preload("Collection").Preload("Lists").
 		FirstOrCreate(profile)
