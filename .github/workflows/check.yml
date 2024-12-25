@@ -1,37 +1,37 @@
 name: Lint and format
 
-on: 
-  push:
-    branches: 
-      - "main"
-  pull_request:
+on:
+    push:
+        branches:
+            - "main"
+    pull_request:
 
 jobs:
-  lint-go:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        uses: golangci/golangci-lint-action@v6
+    lint-go:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+            - uses: golangci/golangci-lint-action@v6
 
-  format-go:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        uses: actions/setup-go@v5
-      - run: go fmt 
-      - run: git diff --exit-code
+    format-go:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-go@v5
+            - run: go fmt
+            - run: git diff --exit-code
 
-  lint-node:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-      - run: npx run eslint
+    lint-node:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+            - run: npx run eslint
 
-  format-node:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v4
-      - run: npx run prettier --check
+    format-node:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v3
+            - uses: actions/setup-node@v4
+            - run: npx run prettier --check
