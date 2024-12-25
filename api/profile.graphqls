@@ -1,5 +1,9 @@
 scalar Time
 
+extend type Query {
+    me: Profile
+}
+
 type Profile {
     uuid: ID!
     name: String!
@@ -16,28 +20,4 @@ type Settings {
     showCollection: Boolean!
     showListsFollows: Boolean!
     showAuthorsFollows: Boolean!
-}
-
-type List {
-    id: ID!
-    name: String!
-    description: String
-    books: [Book!]!
-}
-
-type CollectionItem {
-    id: ID!
-    book: Book!
-    status: Status!
-    createdAt: Time!
-    startedAt: Time
-    finishedAt: Time
-}
-
-enum Status {
-    TO_READ
-    ON_HOLD
-    DROPPED
-    READING
-    READ
 }

@@ -39,6 +39,7 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	Book() BookResolver
 	CollectionItem() CollectionItemResolver
 	Mutation() MutationResolver
 	Profile() ProfileResolver
@@ -119,6 +120,9 @@ type ComplexityRoot struct {
 	}
 }
 
+type BookResolver interface {
+	AddedBy(ctx context.Context, obj *models.Book) (*models.Profile, error)
+}
 type CollectionItemResolver interface {
 	Book(ctx context.Context, obj *models.CollectionItem) (*models.Book, error)
 }
@@ -574,7 +578,11 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "../../api/book.graphqls", Input: `type Book {
+	{Name: "../../api/book.graphqls", Input: `extend type Mutation {
+    createBook(input: CreateBook!): Book!
+}
+
+type Book {
     id: ID!
     title: String!
     isbn: String!
@@ -608,39 +616,10 @@ input CreateBook {
     publisher: ID
 }
 `, BuiltIn: false},
-	{Name: "../../api/mutations.graphqls", Input: `type Mutation {
-    createBook(input: CreateBook!): Book!
-
+	{Name: "../../api/collection.graphqls", Input: `extend type Mutation {
     addToCollection(bookId: ID!, status: Status = TO_READ): CollectionItem!
     deleteFromCollection(itemId: ID!): CollectionItem!
     changeItemStatus(itemId: ID!, status: Status!): CollectionItem!
-}
-`, BuiltIn: false},
-	{Name: "../../api/profile.graphqls", Input: `scalar Time
-
-type Profile {
-    uuid: ID!
-    name: String!
-    email: String!
-    settings: Settings!
-    lists: [List!]!
-    collection: [CollectionItem!]!
-}
-
-type Settings {
-    private: Boolean!
-    showName: Boolean!
-    showStats: Boolean!
-    showCollection: Boolean!
-    showListsFollows: Boolean!
-    showAuthorsFollows: Boolean!
-}
-
-type List {
-    id: ID!
-    name: String!
-    description: String
-    books: [Book!]!
 }
 
 type CollectionItem {
@@ -660,8 +639,35 @@ enum Status {
     READ
 }
 `, BuiltIn: false},
-	{Name: "../../api/queries.graphqls", Input: `type Query {
+	{Name: "../../api/list.graphqls", Input: `type List {
+    id: ID!
+    name: String!
+    description: String
+    books: [Book!]!
+}
+`, BuiltIn: false},
+	{Name: "../../api/profile.graphqls", Input: `scalar Time
+
+extend type Query {
     me: Profile
+}
+
+type Profile {
+    uuid: ID!
+    name: String!
+    email: String!
+    settings: Settings!
+    lists: [List!]!
+    collection: [CollectionItem!]!
+}
+
+type Settings {
+    private: Boolean!
+    showName: Boolean!
+    showStats: Boolean!
+    showCollection: Boolean!
+    showListsFollows: Boolean!
+    showAuthorsFollows: Boolean!
 }
 `, BuiltIn: false},
 }
@@ -1417,7 +1423,7 @@ func (ec *executionContext) _Book_addedBy(ctx context.Context, field graphql.Col
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.AddedBy(), nil
+		return ec.resolvers.Book().AddedBy(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1429,9 +1435,9 @@ func (ec *executionContext) _Book_addedBy(ctx context.Context, field graphql.Col
 		}
 		return graphql.Null
 	}
-	res := resTmp.(models.Profile)
+	res := resTmp.(*models.Profile)
 	fc.Result = res
-	return ec.marshalNProfile2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx, field.Selections, res)
+	return ec.marshalNProfile2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Book_addedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1439,7 +1445,7 @@ func (ec *executionContext) fieldContext_Book_addedBy(_ context.Context, field g
 		Object:     "Book",
 		Field:      field,
 		IsMethod:   true,
-		IsResolver: false,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "uuid":
@@ -4971,17 +4977,17 @@ func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._Book_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "title":
 			out.Values[i] = ec._Book_title(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "isbn":
 			out.Values[i] = ec._Book_isbn(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "publishedAt":
 			out.Values[i] = ec._Book_publishedAt(ctx, field, obj)
@@ -4994,15 +5000,46 @@ func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj
 		case "authors":
 			out.Values[i] = ec._Book_authors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "publisher":
 			out.Values[i] = ec._Book_publisher(ctx, field, obj)
 		case "addedBy":
-			out.Values[i] = ec._Book_addedBy(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Book_addedBy(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -6136,6 +6173,16 @@ func (ec *executionContext) marshalNList2ᚕgithubᚗcomᚋmarcosᚑbritoᚋbook
 
 func (ec *executionContext) marshalNProfile2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx context.Context, sel ast.SelectionSet, v models.Profile) graphql.Marshaler {
 	return ec._Profile(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNProfile2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx context.Context, sel ast.SelectionSet, v *models.Profile) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Profile(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNSettings2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐSettings(ctx context.Context, sel ast.SelectionSet, v models.Settings) graphql.Marshaler {

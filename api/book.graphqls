@@ -1,3 +1,7 @@
+extend type Mutation {
+    createBook(input: CreateBook!): Book!
+}
+
 type Book {
     id: ID!
     title: String!

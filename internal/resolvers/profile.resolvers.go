@@ -12,17 +12,6 @@ import (
 	"github.com/marcos-brito/booklist/internal/store"
 )
 
-// Book is the resolver for the book field.
-func (r *collectionItemResolver) Book(ctx context.Context, obj *models.CollectionItem) (*models.Book, error) {
-	book, err := store.NewBookStore(store.DB).FindById(obj.BookID)
-
-	if err != nil {
-		return nil, ErrInternal
-	}
-
-	return book, nil
-}
-
 // Collection is the resolver for the collection field.
 func (r *profileResolver) Collection(ctx context.Context, obj *models.Profile) ([]*models.CollectionItem, error) {
 	session, ok := auth.GetSession(ctx)
@@ -38,11 +27,34 @@ func (r *profileResolver) Collection(ctx context.Context, obj *models.Profile) (
 	return items, nil
 }
 
-// CollectionItem returns CollectionItemResolver implementation.
-func (r *Resolver) CollectionItem() CollectionItemResolver { return &collectionItemResolver{r} }
+// Me is the resolver for the me field.
+func (r *queryResolver) Me(ctx context.Context) (*models.Profile, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, nil
+	}
+
+	profile, err := store.NewUserStore(store.DB).FindProfileByUserUuid(session.Identity.Id)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	ident, err := auth.ParseIdentity(session.Identity.Traits)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	profile.Name = ident.Name
+	profile.Email = ident.Email
+
+	return profile, nil
+}
 
 // Profile returns ProfileResolver implementation.
 func (r *Resolver) Profile() ProfileResolver { return &profileResolver{r} }
 
-type collectionItemResolver struct{ *Resolver }
+// Query returns QueryResolver implementation.
+func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+
 type profileResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }

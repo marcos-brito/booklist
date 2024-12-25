@@ -1,0 +1,22 @@
+extend type Mutation {
+    addToCollection(bookId: ID!, status: Status = TO_READ): CollectionItem!
+    deleteFromCollection(itemId: ID!): CollectionItem!
+    changeItemStatus(itemId: ID!, status: Status!): CollectionItem!
+}
+
+type CollectionItem {
+    id: ID!
+    book: Book!
+    status: Status!
+    createdAt: Time!
+    startedAt: Time
+    finishedAt: Time
+}
+
+enum Status {
+    TO_READ
+    ON_HOLD
+    DROPPED
+    READING
+    READ
+}

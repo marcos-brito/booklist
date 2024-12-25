@@ -13,26 +13,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// CreateBook is the resolver for the createBook field.
-func (r *mutationResolver) CreateBook(ctx context.Context, input models.CreateBook) (*models.Book, error) {
-	session, ok := auth.GetSession(ctx)
-	if !ok {
-		return nil, ErrUnauthorized
-	}
+// Book is the resolver for the book field.
+func (r *collectionItemResolver) Book(ctx context.Context, obj *models.CollectionItem) (*models.Book, error) {
+	book, err := store.NewBookStore(store.DB).FindById(obj.BookID)
 
-	_, err, badId := store.NewAuthorStore(store.DB).FindManyById(input.Authors...)
-	if err != nil {
-		return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(*badId, "author"))
-	}
-
-	if input.Publisher != nil {
-		_, err = store.NewPublisherStore(store.DB).FindById(*input.Publisher)
-		if err != nil {
-			return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(*input.Publisher, "publisher"))
-		}
-	}
-
-	book, err := store.NewBookStore(store.DB).Create(&input, session.Identity.Id)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -117,7 +101,7 @@ func (r *mutationResolver) ChangeItemStatus(ctx context.Context, itemID uint, st
 	return item, nil
 }
 
-// Mutation returns MutationResolver implementation.
-func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+// CollectionItem returns CollectionItemResolver implementation.
+func (r *Resolver) CollectionItem() CollectionItemResolver { return &collectionItemResolver{r} }
 
-type mutationResolver struct{ *Resolver }
+type collectionItemResolver struct{ *Resolver }

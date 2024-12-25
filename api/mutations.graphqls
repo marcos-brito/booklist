@@ -1,7 +1,0 @@
-type Mutation {
-    createBook(input: CreateBook!): Book!
-
-    addToCollection(bookId: ID!, status: Status = TO_READ): CollectionItem!
-    deleteFromCollection(itemId: ID!): CollectionItem!
-    changeItemStatus(itemId: ID!, status: Status!): CollectionItem!
-}
