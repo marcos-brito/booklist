@@ -16,8 +16,8 @@ import (
 
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*models.Profile, error) {
-	session, err := auth.GetSession(ctx)
-	if err != nil || session == nil {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
 		return nil, nil
 	}
 

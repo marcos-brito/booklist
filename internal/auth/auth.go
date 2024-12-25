@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -40,12 +39,12 @@ func AddSessionToContext(ctx context.Context, session *ory.Session) context.Cont
 	return context.WithValue(ctx, session_context_key, session)
 }
 
-func GetSession(ctx context.Context) (*ory.Session, error) {
+func GetSession(ctx context.Context) (*ory.Session, bool) {
 	session, ok := ctx.Value(session_context_key).(*ory.Session)
 
 	if !ok || session == nil {
-		return nil, errors.New("session not found in context")
+		return nil, false
 	}
 
-	return session, nil
+	return session, true
 }
