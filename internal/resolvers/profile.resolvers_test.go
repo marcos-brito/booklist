@@ -17,7 +17,6 @@ import (
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/resolvers"
 	"github.com/marcos-brito/booklist/internal/store"
-	ory "github.com/ory/client-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -26,7 +25,7 @@ import (
 
 func TestMain(m *testing.M) {
 	teardown := Setup()
-    defer teardown()
+	defer teardown()
 	code := m.Run()
 	os.Exit(code)
 }
@@ -112,7 +111,7 @@ func TestCollection(t *testing.T) {
 		got, err := resolver.Profile().Collection(ctx, profile)
 		assert.Nil(t, err)
 		for _, item := range got {
-            assert.Equal(t, item.ProfileID, profile.ID)
+			assert.Equal(t, item.ProfileID, profile.ID)
 			assert.True(t, slices.ContainsFunc(books, func(book *models.Book) bool {
 				return book.ID == item.BookID
 			}))
@@ -120,54 +119,29 @@ func TestCollection(t *testing.T) {
 	})
 }
 
-
 func TestMe(t *testing.T) {
-	tests := []struct {
-		desc     string
-		session  *ory.Session
-		expected *models.Profile
-	}{
-		{
-			"creates profile with default settings",
-			&ory.Session{
-                Identity: &ory.Identity{Id: "123" ,Traits: &auth.Identity{Name: "User", Email: "user@email.com"}}},
-			&models.Profile{
-				UserUUID: "123",
-				Name:     "User",
-				Email:    "user@email.com",
-				Settings: models.Settings{
-					Private: true,
-				},
-			},
-		},
-		{
-			"returns nil if there is no session",
-			nil,
-			nil,
-		},
-	}
+	resolver := resolvers.Resolver{}
 
-	for _, test := range tests {
-		t.Run(test.desc, func(t *testing.T) {
-			ctx := auth.AddSessionToContext(context.Background(), test.session)
-			resolver := resolvers.Resolver{}
-			got, err := resolver.Query().Me(ctx)
+	t.Run("should crate profile when it does not exist", func(t *testing.T) {
+		session := NewRandomSession()
+		ctx := auth.AddSessionToContext(context.Background(), session)
 
-			if err != nil {
-				t.Fatalf("unexpected error %s", err)
-			}
+		identity, err := auth.ParseIdentity(session.Identity.Traits)
+		assert.Nil(t, err)
 
-			if !profilePartialEquals(got, test.expected) {
-				t.Fatalf("got mismatching profiles:\n got\n %+v\n expected\n %+v", got, test.expected)
-			}
-		})
-	}
-}
+		got, err := resolver.Query().Me(ctx)
+		assert.Nil(t, err)
+		assert.Equal(t, got.UserUUID, session.Identity.Id)
+		assert.Equal(t, got.Name, identity.Name)
+		assert.Equal(t, got.Email, identity.Email)
+		assert.True(t, got.Settings.Private)
+	})
 
-func profilePartialEquals(l, r *models.Profile) bool {
-    if (l == nil && r == nil) {
-        return true
-    }
+	t.Run("should return nil if there is no session", func(t *testing.T) {
+		ctx := auth.AddSessionToContext(context.Background(), nil)
+		got, err := resolver.Query().Me(ctx)
 
-    return l.UUID() == r.UUID() && l.Email == r.Email && l.Name == r.Name && l.Settings.Private == r.Settings.Private
+		assert.Nil(t, err)
+		assert.Nil(t, got)
+	})
 }
