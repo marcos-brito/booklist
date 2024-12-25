@@ -46,21 +46,24 @@ type CollectionItem struct {
 	BookID     uint
 	Book       Book
 	Status     Status
-	StartedAt  time.Time
-	FinishedAt time.Time
+	StartedAt  *time.Time
+	FinishedAt *time.Time
 }
 
 type Book struct {
 	gorm.Model
 	Title         string
 	ISBN          string
-	PublishedAt   time.Time
-	PageCount     int
-	Edition       int
+	PublishedAt   *time.Time
+	PageCount     *int
+	Edition       *int
 	NeedsApproval bool
 	Authors       []*Author `gorm:"many2many:book_authors;"`
-	PublisherID   uint
+	PublisherID   *uint
 	Publisher     Publisher
+	ProfileID     uint
+	Profile       Profile
+}
 }
 
 type Author struct {

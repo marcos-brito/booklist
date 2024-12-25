@@ -2,12 +2,13 @@ type Book {
     id: ID!
     title: String!
     isbn: String!
-    publishedAt: Time!
-    pageCount: Int!
-    edition: Int!
-    needsApproval: Boolean!
+    publishedAt: Time
+    pageCount: Int
+    edition: Int
+    needsApproval: Boolean
     authors: [Author!]!
-    publisher: Publisher!
+    publisher: Publisher
+    addedBy: Profile!
 }
 
 type Author {
@@ -19,4 +20,14 @@ type Author {
 type Publisher {
     id: ID!
     name: String!
+}
+
+input CreateBook {
+    title: String!
+    isbn: String!
+    publishedAt: Time
+    pageCount: Int
+    edition: Int
+    authors: [ID!]!
+    publisher: ID
 }
