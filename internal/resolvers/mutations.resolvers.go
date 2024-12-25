@@ -6,14 +6,115 @@ package resolvers
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/marcos-brito/booklist/internal/auth"
 	"github.com/marcos-brito/booklist/internal/models"
+	"github.com/marcos-brito/booklist/internal/store"
+	"gorm.io/gorm"
 )
 
+// CreateBook is the resolver for the createBook field.
+func (r *mutationResolver) CreateBook(ctx context.Context, input models.CreateBook) (*models.Book, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	_, err, badId := store.NewAuthorStore(store.DB).FindManyById(input.Authors...)
+	if err != nil {
+		return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(*badId, "author"))
+	}
+
+	if input.Publisher != nil {
+		_, err = store.NewPublisherStore(store.DB).FindById(*input.Publisher)
+		if err != nil {
+			return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(*input.Publisher, "publisher"))
+		}
+	}
+
+	book, err := store.NewBookStore(store.DB).Create(&input, session.Identity.Id)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return book, nil
+}
+
 // AddToCollection is the resolver for the addToCollection field.
-func (r *mutationResolver) AddToCollection(ctx context.Context, bookID string, status models.Status) (*models.CollectionItem, error) {
-	panic(fmt.Errorf("not implemented: AddToCollection - addToCollection"))
+func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, status *models.Status) (*models.CollectionItem, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	_, err := store.NewBookStore(store.DB).FindById(bookID)
+	if err != nil {
+		return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(bookID, "book"))
+	}
+
+	if status == nil {
+		status = new(models.Status)
+		*status = models.StatusToRead
+	}
+
+	item, err := store.NewUserStore(store.DB).AddToCollection(session.Identity.Id, bookID, *status)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return item, nil
+}
+
+// DeleteFromCollection is the resolver for the deleteFromCollection field.
+func (r *mutationResolver) DeleteFromCollection(ctx context.Context, itemID uint) (*models.CollectionItem, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	userStore := store.NewUserStore(store.DB)
+	profile, err := userStore.FindProfileByUserUuid(session.Identity.Id)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	item, err := userStore.FindItemById(itemID)
+	if err != nil || item.ProfileID != profile.ID {
+		return nil, ErrBadId(itemID, "collectionItem")
+	}
+
+	item, err = userStore.DeleteFromCollection(itemID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return item, nil
+}
+
+// ChangeItemStatus is the resolver for the changeItemStatus field.
+func (r *mutationResolver) ChangeItemStatus(ctx context.Context, itemID uint, status models.Status) (*models.CollectionItem, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	userStore := store.NewUserStore(store.DB)
+	profile, err := userStore.FindProfileByUserUuid(session.Identity.Id)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	item, err := userStore.FindItemById(itemID)
+	if err != nil || item.ProfileID != profile.ID {
+		return nil, ErrBadId(itemID, "collectionItem")
+	}
+
+	item, err = userStore.ChangeItemStatus(itemID, status)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return item, nil
 }
 
 // Mutation returns MutationResolver implementation.

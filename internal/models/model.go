@@ -9,7 +9,7 @@ import (
 type Profile struct {
 	gorm.Model
 	// Comes from Ory
-	UserUUID   string
+	UserUUID   string `gorm:"uniqueIndex"`
 	Name       string `gorm:"-:all"`
 	Email      string `gorm:"-:all"`
 	Settings   Settings
@@ -64,6 +64,19 @@ type Book struct {
 	ProfileID     uint
 	Profile       Profile
 }
+
+func NewBookFromInput(input *CreateBook, authors []*Author, profileId uint) *Book {
+	return &Book{
+		Title:         input.Title,
+		ISBN:          input.Isbn,
+		PublishedAt:   input.PublishedAt,
+		PageCount:     input.PageCount,
+		Edition:       input.Edition,
+		NeedsApproval: true,
+		Authors:       authors,
+		PublisherID:   input.Publisher,
+		ProfileID:     profileId,
+	}
 }
 
 type Author struct {

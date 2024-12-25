@@ -6,8 +6,6 @@ package resolvers
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/marcos-brito/booklist/internal/auth"
 	"github.com/marcos-brito/booklist/internal/models"
@@ -21,15 +19,14 @@ func (r *queryResolver) Me(ctx context.Context) (*models.Profile, error) {
 		return nil, nil
 	}
 
-	profile, err := store.NewUserStore(store.DB).FindProfile(session.Identity.Id)
+	profile, err := store.NewUserStore(store.DB).FindProfileByUserUuid(session.Identity.Id)
 	if err != nil {
-		fmt.Println("\n", err)
-		return nil, errors.New(InternalServerError)
+		return nil, ErrInternal
 	}
 
 	ident, err := auth.ParseIdentity(session.Identity.Traits)
 	if err != nil {
-		return nil, errors.New(InternalServerError)
+		return nil, ErrInternal
 	}
 
 	profile.Name = ident.Name
