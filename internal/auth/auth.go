@@ -8,10 +8,14 @@ import (
 	ory "github.com/ory/client-go"
 )
 
+type SessionContextKey string
+
 type Identity struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
+
+const session_context_key SessionContextKey = "req.session"
 
 func ParseIdentity(obj interface{}) (*Identity, error) {
 	id, ok := obj.(*Identity)
@@ -22,8 +26,6 @@ func ParseIdentity(obj interface{}) (*Identity, error) {
 
 	return id, nil
 }
-
-const session_context_key string = "req.session"
 
 func SessionMiddleware(next http.Handler, oryClient *ory.APIClient) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
