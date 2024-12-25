@@ -40,9 +40,15 @@ func With(db *gorm.DB) {
 	DB = db
 }
 
-func Migrate(db *gorm.DB) {
-	db.AutoMigrate(&models.Book{}, &models.Author{}, &models.Publisher{}, &models.Profile{},
+func Migrate(db *gorm.DB) error {
+    err := db.AutoMigrate(&models.Book{}, &models.Author{}, &models.Publisher{}, &models.Profile{},
 		&models.Settings{}, &models.List{}, &models.CollectionItem{})
+
+    if err != nil {
+        return err
+    }
+
+    return nil
 }
 
 func NewConnection() (*gorm.DB, error) {

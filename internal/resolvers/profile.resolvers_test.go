@@ -43,7 +43,10 @@ func Setup() func() {
 	}
 
 	store.With(db)
-	store.Migrate(db)
+    err = store.Migrate(db)
+	if err != nil {
+		panic(err)
+	}
 
 	return func() {
 		if err := testcontainers.TerminateContainer(container); err != nil {
