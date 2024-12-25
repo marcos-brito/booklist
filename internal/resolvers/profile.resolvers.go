@@ -7,15 +7,35 @@ package resolvers
 import (
 	"context"
 
+	"github.com/marcos-brito/booklist/internal/auth"
 	"github.com/marcos-brito/booklist/internal/models"
+	"github.com/marcos-brito/booklist/internal/store"
 )
 
 // Book is the resolver for the book field.
 func (r *collectionItemResolver) Book(ctx context.Context, obj *models.CollectionItem) (*models.Book, error) {
+	book, err := store.NewBookStore(store.DB).FindById(obj.BookID)
+
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return book, nil
 }
 
 // Collection is the resolver for the collection field.
 func (r *profileResolver) Collection(ctx context.Context, obj *models.Profile) ([]*models.CollectionItem, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	items, err := store.NewUserStore(store.DB).FindItems(session.Identity.Id)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return items, nil
 }
 
 // CollectionItem returns CollectionItemResolver implementation.
