@@ -39,7 +39,9 @@ type Config struct {
 }
 
 type ResolverRoot interface {
+	CollectionItem() CollectionItemResolver
 	Mutation() MutationResolver
+	Profile() ProfileResolver
 	Query() QueryResolver
 }
 
@@ -54,6 +56,7 @@ type ComplexityRoot struct {
 	}
 
 	Book struct {
+		AddedBy       func(childComplexity int) int
 		Authors       func(childComplexity int) int
 		Edition       func(childComplexity int) int
 		ID            func(childComplexity int) int
@@ -82,7 +85,10 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddToCollection func(childComplexity int, bookID string, status models.Status) int
+		AddToCollection      func(childComplexity int, bookID uint, status *models.Status) int
+		ChangeItemStatus     func(childComplexity int, itemID uint, status models.Status) int
+		CreateBook           func(childComplexity int, input models.CreateBook) int
+		DeleteFromCollection func(childComplexity int, itemID uint) int
 	}
 
 	Profile struct {
@@ -113,8 +119,17 @@ type ComplexityRoot struct {
 	}
 }
 
+type CollectionItemResolver interface {
+	Book(ctx context.Context, obj *models.CollectionItem) (*models.Book, error)
+}
 type MutationResolver interface {
-	AddToCollection(ctx context.Context, bookID string, status models.Status) (*models.CollectionItem, error)
+	CreateBook(ctx context.Context, input models.CreateBook) (*models.Book, error)
+	AddToCollection(ctx context.Context, bookID uint, status *models.Status) (*models.CollectionItem, error)
+	DeleteFromCollection(ctx context.Context, itemID uint) (*models.CollectionItem, error)
+	ChangeItemStatus(ctx context.Context, itemID uint, status models.Status) (*models.CollectionItem, error)
+}
+type ProfileResolver interface {
+	Collection(ctx context.Context, obj *models.Profile) ([]*models.CollectionItem, error)
 }
 type QueryResolver interface {
 	Me(ctx context.Context) (*models.Profile, error)
@@ -159,6 +174,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Author.Name(childComplexity), true
+
+	case "Book.addedBy":
+		if e.complexity.Book.AddedBy == nil {
+			break
+		}
+
+		return e.complexity.Book.AddedBy(childComplexity), true
 
 	case "Book.authors":
 		if e.complexity.Book.Authors == nil {
@@ -303,7 +325,43 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.AddToCollection(childComplexity, args["bookId"].(string), args["status"].(models.Status)), true
+		return e.complexity.Mutation.AddToCollection(childComplexity, args["bookId"].(uint), args["status"].(*models.Status)), true
+
+	case "Mutation.changeItemStatus":
+		if e.complexity.Mutation.ChangeItemStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_changeItemStatus_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.ChangeItemStatus(childComplexity, args["itemId"].(uint), args["status"].(models.Status)), true
+
+	case "Mutation.createBook":
+		if e.complexity.Mutation.CreateBook == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_createBook_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CreateBook(childComplexity, args["input"].(models.CreateBook)), true
+
+	case "Mutation.deleteFromCollection":
+		if e.complexity.Mutation.DeleteFromCollection == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteFromCollection_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteFromCollection(childComplexity, args["itemId"].(uint)), true
 
 	case "Profile.collection":
 		if e.complexity.Profile.Collection == nil {
@@ -417,7 +475,9 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
-	inputUnmarshalMap := graphql.BuildUnmarshalerMap()
+	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputCreateBook,
+	)
 	first := true
 
 	switch opCtx.Operation.Operation {
@@ -518,12 +578,13 @@ var sources = []*ast.Source{
     id: ID!
     title: String!
     isbn: String!
-    publishedAt: Time!
-    pageCount: Int!
-    edition: Int!
-    needsApproval: Boolean!
+    publishedAt: Time
+    pageCount: Int
+    edition: Int
+    needsApproval: Boolean
     authors: [Author!]!
-    publisher: Publisher!
+    publisher: Publisher
+    addedBy: Profile!
 }
 
 type Author {
@@ -536,9 +597,23 @@ type Publisher {
     id: ID!
     name: String!
 }
+
+input CreateBook {
+    title: String!
+    isbn: String!
+    publishedAt: Time
+    pageCount: Int
+    edition: Int
+    authors: [ID!]!
+    publisher: ID
+}
 `, BuiltIn: false},
 	{Name: "../../api/mutations.graphqls", Input: `type Mutation {
-    addToCollection(bookId: ID!, status: Status!): CollectionItem!
+    createBook(input: CreateBook!): Book!
+
+    addToCollection(bookId: ID!, status: Status = TO_READ): CollectionItem!
+    deleteFromCollection(itemId: ID!): CollectionItem!
+    changeItemStatus(itemId: ID!, status: Status!): CollectionItem!
 }
 `, BuiltIn: false},
 	{Name: "../../api/profile.graphqls", Input: `scalar Time
@@ -614,17 +689,58 @@ func (ec *executionContext) field_Mutation_addToCollection_args(ctx context.Cont
 func (ec *executionContext) field_Mutation_addToCollection_argsBookID(
 	ctx context.Context,
 	rawArgs map[string]interface{},
-) (string, error) {
+) (uint, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("bookId"))
 	if tmp, ok := rawArgs["bookId"]; ok {
-		return ec.unmarshalNID2string(ctx, tmp)
+		return ec.unmarshalNID2uint(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal uint
 	return zeroVal, nil
 }
 
 func (ec *executionContext) field_Mutation_addToCollection_argsStatus(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (*models.Status, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("status"))
+	if tmp, ok := rawArgs["status"]; ok {
+		return ec.unmarshalOStatus2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐStatus(ctx, tmp)
+	}
+
+	var zeroVal *models.Status
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_changeItemStatus_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_changeItemStatus_argsItemID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["itemId"] = arg0
+	arg1, err := ec.field_Mutation_changeItemStatus_argsStatus(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["status"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_changeItemStatus_argsItemID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (uint, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("itemId"))
+	if tmp, ok := rawArgs["itemId"]; ok {
+		return ec.unmarshalNID2uint(ctx, tmp)
+	}
+
+	var zeroVal uint
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_changeItemStatus_argsStatus(
 	ctx context.Context,
 	rawArgs map[string]interface{},
 ) (models.Status, error) {
@@ -634,6 +750,52 @@ func (ec *executionContext) field_Mutation_addToCollection_argsStatus(
 	}
 
 	var zeroVal models.Status
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createBook_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_createBook_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_createBook_argsInput(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (models.CreateBook, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNCreateBook2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCreateBook(ctx, tmp)
+	}
+
+	var zeroVal models.CreateBook
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteFromCollection_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	arg0, err := ec.field_Mutation_deleteFromCollection_argsItemID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["itemId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_deleteFromCollection_argsItemID(
+	ctx context.Context,
+	rawArgs map[string]interface{},
+) (uint, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("itemId"))
+	if tmp, ok := rawArgs["itemId"]; ok {
+		return ec.unmarshalNID2uint(ctx, tmp)
+	}
+
+	var zeroVal uint
 	return zeroVal, nil
 }
 
@@ -999,14 +1161,11 @@ func (ec *executionContext) _Book_publishedAt(ctx context.Context, field graphql
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(time.Time)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Book_publishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1043,14 +1202,11 @@ func (ec *executionContext) _Book_pageCount(ctx context.Context, field graphql.C
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(*int)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Book_pageCount(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1087,14 +1243,11 @@ func (ec *executionContext) _Book_edition(ctx context.Context, field graphql.Col
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
-	res := resTmp.(int)
+	res := resTmp.(*int)
 	fc.Result = res
-	return ec.marshalNInt2int(ctx, field.Selections, res)
+	return ec.marshalOInt2ᚖint(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Book_edition(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1131,14 +1284,11 @@ func (ec *executionContext) _Book_needsApproval(ctx context.Context, field graph
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.(bool)
 	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+	return ec.marshalOBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Book_needsApproval(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1227,14 +1377,11 @@ func (ec *executionContext) _Book_publisher(ctx context.Context, field graphql.C
 		return graphql.Null
 	}
 	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
 		return graphql.Null
 	}
 	res := resTmp.(models.Publisher)
 	fc.Result = res
-	return ec.marshalNPublisher2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐPublisher(ctx, field.Selections, res)
+	return ec.marshalOPublisher2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐPublisher(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Book_publisher(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1251,6 +1398,64 @@ func (ec *executionContext) fieldContext_Book_publisher(_ context.Context, field
 				return ec.fieldContext_Publisher_name(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Publisher", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Book_addedBy(ctx context.Context, field graphql.CollectedField, obj *models.Book) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Book_addedBy(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AddedBy(), nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(models.Profile)
+	fc.Result = res
+	return ec.marshalNProfile2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Book_addedBy(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Book",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "uuid":
+				return ec.fieldContext_Profile_uuid(ctx, field)
+			case "name":
+				return ec.fieldContext_Profile_name(ctx, field)
+			case "email":
+				return ec.fieldContext_Profile_email(ctx, field)
+			case "settings":
+				return ec.fieldContext_Profile_settings(ctx, field)
+			case "lists":
+				return ec.fieldContext_Profile_lists(ctx, field)
+			case "collection":
+				return ec.fieldContext_Profile_collection(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Profile", field.Name)
 		},
 	}
 	return fc, nil
@@ -1314,7 +1519,7 @@ func (ec *executionContext) _CollectionItem_book(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Book, nil
+		return ec.resolvers.CollectionItem().Book(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1326,17 +1531,17 @@ func (ec *executionContext) _CollectionItem_book(ctx context.Context, field grap
 		}
 		return graphql.Null
 	}
-	res := resTmp.(models.Book)
+	res := resTmp.(*models.Book)
 	fc.Result = res
-	return ec.marshalNBook2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐBook(ctx, field.Selections, res)
+	return ec.marshalNBook2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐBook(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_CollectionItem_book(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "CollectionItem",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
@@ -1357,6 +1562,8 @@ func (ec *executionContext) fieldContext_CollectionItem_book(_ context.Context, 
 				return ec.fieldContext_Book_authors(ctx, field)
 			case "publisher":
 				return ec.fieldContext_Book_publisher(ctx, field)
+			case "addedBy":
+				return ec.fieldContext_Book_addedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Book", field.Name)
 		},
@@ -1475,9 +1682,9 @@ func (ec *executionContext) _CollectionItem_startedAt(ctx context.Context, field
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(time.Time)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOTime2timeᚐTime(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_CollectionItem_startedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1516,9 +1723,9 @@ func (ec *executionContext) _CollectionItem_finishedAt(ctx context.Context, fiel
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(time.Time)
+	res := resTmp.(*time.Time)
 	fc.Result = res
-	return ec.marshalOTime2timeᚐTime(ctx, field.Selections, res)
+	return ec.marshalOTime2ᚖtimeᚐTime(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_CollectionItem_finishedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1720,9 +1927,88 @@ func (ec *executionContext) fieldContext_List_books(_ context.Context, field gra
 				return ec.fieldContext_Book_authors(ctx, field)
 			case "publisher":
 				return ec.fieldContext_Book_publisher(ctx, field)
+			case "addedBy":
+				return ec.fieldContext_Book_addedBy(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Book", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_createBook(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_createBook(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CreateBook(rctx, fc.Args["input"].(models.CreateBook))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*models.Book)
+	fc.Result = res
+	return ec.marshalNBook2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐBook(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_createBook(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Book_id(ctx, field)
+			case "title":
+				return ec.fieldContext_Book_title(ctx, field)
+			case "isbn":
+				return ec.fieldContext_Book_isbn(ctx, field)
+			case "publishedAt":
+				return ec.fieldContext_Book_publishedAt(ctx, field)
+			case "pageCount":
+				return ec.fieldContext_Book_pageCount(ctx, field)
+			case "edition":
+				return ec.fieldContext_Book_edition(ctx, field)
+			case "needsApproval":
+				return ec.fieldContext_Book_needsApproval(ctx, field)
+			case "authors":
+				return ec.fieldContext_Book_authors(ctx, field)
+			case "publisher":
+				return ec.fieldContext_Book_publisher(ctx, field)
+			case "addedBy":
+				return ec.fieldContext_Book_addedBy(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Book", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_createBook_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -1741,7 +2027,7 @@ func (ec *executionContext) _Mutation_addToCollection(ctx context.Context, field
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().AddToCollection(rctx, fc.Args["bookId"].(string), fc.Args["status"].(models.Status))
+		return ec.resolvers.Mutation().AddToCollection(rctx, fc.Args["bookId"].(uint), fc.Args["status"].(*models.Status))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1790,6 +2076,144 @@ func (ec *executionContext) fieldContext_Mutation_addToCollection(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_addToCollection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_deleteFromCollection(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteFromCollection(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteFromCollection(rctx, fc.Args["itemId"].(uint))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*models.CollectionItem)
+	fc.Result = res
+	return ec.marshalNCollectionItem2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItem(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteFromCollection(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CollectionItem_id(ctx, field)
+			case "book":
+				return ec.fieldContext_CollectionItem_book(ctx, field)
+			case "status":
+				return ec.fieldContext_CollectionItem_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CollectionItem_createdAt(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_CollectionItem_startedAt(ctx, field)
+			case "finishedAt":
+				return ec.fieldContext_CollectionItem_finishedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CollectionItem", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteFromCollection_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_changeItemStatus(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_changeItemStatus(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().ChangeItemStatus(rctx, fc.Args["itemId"].(uint), fc.Args["status"].(models.Status))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*models.CollectionItem)
+	fc.Result = res
+	return ec.marshalNCollectionItem2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItem(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_changeItemStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_CollectionItem_id(ctx, field)
+			case "book":
+				return ec.fieldContext_CollectionItem_book(ctx, field)
+			case "status":
+				return ec.fieldContext_CollectionItem_status(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_CollectionItem_createdAt(ctx, field)
+			case "startedAt":
+				return ec.fieldContext_CollectionItem_startedAt(ctx, field)
+			case "finishedAt":
+				return ec.fieldContext_CollectionItem_finishedAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type CollectionItem", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_changeItemStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -2054,7 +2478,7 @@ func (ec *executionContext) _Profile_collection(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Collection, nil
+		return ec.resolvers.Profile().Collection(rctx, obj)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2066,17 +2490,17 @@ func (ec *executionContext) _Profile_collection(ctx context.Context, field graph
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]models.CollectionItem)
+	res := resTmp.([]*models.CollectionItem)
 	fc.Result = res
-	return ec.marshalNCollectionItem2ᚕgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItemᚄ(ctx, field.Selections, res)
+	return ec.marshalNCollectionItem2ᚕᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItemᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Profile_collection(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Profile",
 		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
+		IsMethod:   true,
+		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
@@ -4407,6 +4831,75 @@ func (ec *executionContext) fieldContext___Type_specifiedByURL(_ context.Context
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputCreateBook(ctx context.Context, obj interface{}) (models.CreateBook, error) {
+	var it models.CreateBook
+	asMap := map[string]interface{}{}
+	for k, v := range obj.(map[string]interface{}) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"title", "isbn", "publishedAt", "pageCount", "edition", "authors", "publisher"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "title":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("title"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Title = data
+		case "isbn":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("isbn"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Isbn = data
+		case "publishedAt":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publishedAt"))
+			data, err := ec.unmarshalOTime2ᚖtimeᚐTime(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PublishedAt = data
+		case "pageCount":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("pageCount"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PageCount = data
+		case "edition":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("edition"))
+			data, err := ec.unmarshalOInt2ᚖint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Edition = data
+		case "authors":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authors"))
+			data, err := ec.unmarshalNID2ᚕuintᚄ(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Authors = data
+		case "publisher":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("publisher"))
+			data, err := ec.unmarshalOID2ᚖuint(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Publisher = data
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -4492,24 +4985,12 @@ func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "publishedAt":
 			out.Values[i] = ec._Book_publishedAt(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "pageCount":
 			out.Values[i] = ec._Book_pageCount(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "edition":
 			out.Values[i] = ec._Book_edition(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "needsApproval":
 			out.Values[i] = ec._Book_needsApproval(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
 		case "authors":
 			out.Values[i] = ec._Book_authors(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -4517,6 +4998,8 @@ func (ec *executionContext) _Book(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "publisher":
 			out.Values[i] = ec._Book_publisher(ctx, field, obj)
+		case "addedBy":
+			out.Values[i] = ec._Book_addedBy(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -4557,22 +5040,53 @@ func (ec *executionContext) _CollectionItem(ctx context.Context, sel ast.Selecti
 		case "id":
 			out.Values[i] = ec._CollectionItem_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "book":
-			out.Values[i] = ec._CollectionItem_book(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._CollectionItem_book(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		case "status":
 			out.Values[i] = ec._CollectionItem_status(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "createdAt":
 			out.Values[i] = ec._CollectionItem_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "startedAt":
 			out.Values[i] = ec._CollectionItem_startedAt(ctx, field, obj)
@@ -4671,9 +5185,30 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
+		case "createBook":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_createBook(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "addToCollection":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addToCollection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteFromCollection":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteFromCollection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "changeItemStatus":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_changeItemStatus(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -4715,33 +5250,64 @@ func (ec *executionContext) _Profile(ctx context.Context, sel ast.SelectionSet, 
 		case "uuid":
 			out.Values[i] = ec._Profile_uuid(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "name":
 			out.Values[i] = ec._Profile_name(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._Profile_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "settings":
 			out.Values[i] = ec._Profile_settings(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "lists":
 			out.Values[i] = ec._Profile_lists(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				out.Invalids++
+				atomic.AddUint32(&out.Invalids, 1)
 			}
 		case "collection":
-			out.Values[i] = ec._Profile_collection(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Profile_collection(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
 			}
+
+			if field.Deferrable != nil {
+				dfs, ok := deferred[field.Deferrable.Label]
+				di := 0
+				if ok {
+					dfs.AddField(field)
+					di = len(dfs.Values) - 1
+				} else {
+					dfs = graphql.NewFieldSet([]graphql.CollectedField{field})
+					deferred[field.Deferrable.Label] = dfs
+				}
+				dfs.Concurrently(di, func(ctx context.Context) graphql.Marshaler {
+					return innerFunc(ctx, dfs)
+				})
+
+				// don't run the out.Concurrently() call below
+				out.Values[i] = graphql.Null
+				continue
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5370,6 +5936,16 @@ func (ec *executionContext) marshalNBook2ᚕgithubᚗcomᚋmarcosᚑbritoᚋbook
 	return ret
 }
 
+func (ec *executionContext) marshalNBook2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐBook(ctx context.Context, sel ast.SelectionSet, v *models.Book) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._Book(ctx, sel, v)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v interface{}) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -5389,7 +5965,7 @@ func (ec *executionContext) marshalNCollectionItem2githubᚗcomᚋmarcosᚑbrito
 	return ec._CollectionItem(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNCollectionItem2ᚕgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItemᚄ(ctx context.Context, sel ast.SelectionSet, v []models.CollectionItem) graphql.Marshaler {
+func (ec *executionContext) marshalNCollectionItem2ᚕᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItemᚄ(ctx context.Context, sel ast.SelectionSet, v []*models.CollectionItem) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5413,7 +5989,7 @@ func (ec *executionContext) marshalNCollectionItem2ᚕgithubᚗcomᚋmarcosᚑbr
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNCollectionItem2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItem(ctx, sel, v[i])
+			ret[i] = ec.marshalNCollectionItem2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCollectionItem(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5441,6 +6017,11 @@ func (ec *executionContext) marshalNCollectionItem2ᚖgithubᚗcomᚋmarcosᚑbr
 		return graphql.Null
 	}
 	return ec._CollectionItem(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNCreateBook2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐCreateBook(ctx context.Context, v interface{}) (models.CreateBook, error) {
+	res, err := ec.unmarshalInputCreateBook(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v interface{}) (string, error) {
@@ -5473,19 +6054,36 @@ func (ec *executionContext) marshalNID2uint(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v interface{}) (int, error) {
-	res, err := graphql.UnmarshalInt(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
-	res := graphql.MarshalInt(v)
-	if res == graphql.Null {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+func (ec *executionContext) unmarshalNID2ᚕuintᚄ(ctx context.Context, v interface{}) ([]uint, error) {
+	var vSlice []interface{}
+	if v != nil {
+		vSlice = graphql.CoerceList(v)
+	}
+	var err error
+	res := make([]uint, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNID2uint(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
 		}
 	}
-	return res
+	return res, nil
+}
+
+func (ec *executionContext) marshalNID2ᚕuintᚄ(ctx context.Context, sel ast.SelectionSet, v []uint) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNID2uint(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalNList2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐList(ctx context.Context, sel ast.SelectionSet, v models.List) graphql.Marshaler {
@@ -5536,8 +6134,8 @@ func (ec *executionContext) marshalNList2ᚕgithubᚗcomᚋmarcosᚑbritoᚋbook
 	return ret
 }
 
-func (ec *executionContext) marshalNPublisher2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐPublisher(ctx context.Context, sel ast.SelectionSet, v models.Publisher) graphql.Marshaler {
-	return ec._Publisher(ctx, sel, &v)
+func (ec *executionContext) marshalNProfile2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx context.Context, sel ast.SelectionSet, v models.Profile) graphql.Marshaler {
+	return ec._Profile(ctx, sel, &v)
 }
 
 func (ec *executionContext) marshalNSettings2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐSettings(ctx context.Context, sel ast.SelectionSet, v models.Settings) graphql.Marshaler {
@@ -5863,11 +6461,63 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	return res
 }
 
+func (ec *executionContext) unmarshalOID2ᚖuint(ctx context.Context, v interface{}) (*uint, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalUint(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOID2ᚖuint(ctx context.Context, sel ast.SelectionSet, v *uint) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalUint(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint(ctx context.Context, v interface{}) (*int, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint(ctx context.Context, sel ast.SelectionSet, v *int) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalInt(*v)
+	return res
+}
+
 func (ec *executionContext) marshalOProfile2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐProfile(ctx context.Context, sel ast.SelectionSet, v *models.Profile) graphql.Marshaler {
 	if v == nil {
 		return graphql.Null
 	}
 	return ec._Profile(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalOPublisher2githubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐPublisher(ctx context.Context, sel ast.SelectionSet, v models.Publisher) graphql.Marshaler {
+	return ec._Publisher(ctx, sel, &v)
+}
+
+func (ec *executionContext) unmarshalOStatus2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐStatus(ctx context.Context, v interface{}) (*models.Status, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(models.Status)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOStatus2ᚖgithubᚗcomᚋmarcosᚑbritoᚋbooklistᚋinternalᚋmodelsᚐStatus(ctx context.Context, sel ast.SelectionSet, v *models.Status) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) unmarshalOString2string(ctx context.Context, v interface{}) (string, error) {
@@ -5896,13 +6546,19 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) unmarshalOTime2timeᚐTime(ctx context.Context, v interface{}) (time.Time, error) {
+func (ec *executionContext) unmarshalOTime2ᚖtimeᚐTime(ctx context.Context, v interface{}) (*time.Time, error) {
+	if v == nil {
+		return nil, nil
+	}
 	res, err := graphql.UnmarshalTime(v)
-	return res, graphql.ErrorOnPath(ctx, err)
+	return &res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalOTime2timeᚐTime(ctx context.Context, sel ast.SelectionSet, v time.Time) graphql.Marshaler {
-	res := graphql.MarshalTime(v)
+func (ec *executionContext) marshalOTime2ᚖtimeᚐTime(ctx context.Context, sel ast.SelectionSet, v *time.Time) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalTime(*v)
 	return res
 }
 

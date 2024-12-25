@@ -6,7 +6,18 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 )
+
+type CreateBook struct {
+	Title       string     `json:"title"`
+	Isbn        string     `json:"isbn"`
+	PublishedAt *time.Time `json:"publishedAt,omitempty"`
+	PageCount   *int       `json:"pageCount,omitempty"`
+	Edition     *int       `json:"edition,omitempty"`
+	Authors     []uint     `json:"authors"`
+	Publisher   *uint      `json:"publisher,omitempty"`
+}
 
 type Mutation struct {
 }
