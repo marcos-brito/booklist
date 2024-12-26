@@ -102,5 +102,7 @@ models:
                 resolver: true
     Profile:
         fields:
+            settings:
+                resolver: true
             collection:
                 resolver: true

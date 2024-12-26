@@ -36,6 +36,22 @@ func (us *UserStore) FindItemById(id uint) (*models.CollectionItem, error) {
 	return item, nil
 }
 
+func (us *UserStore) FindSettingsByUserUuid(uuid string) (*models.Settings, error) {
+	profile := &models.Profile{}
+    err := us.DB.First(profile, &models.Profile{UserUUID: uuid}).Error
+    if err != nil {
+        return nil, err
+    }
+
+	settings := &models.Settings{}
+    err = us.DB.First(settings, &models.Settings{ProfileID: profile.ID}).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return settings, nil
+}
+
 func (us *UserStore) FindItems(userUuid string) ([]*models.CollectionItem, error) {
     profile, err := us.FindProfileByUserUuid(userUuid)
 	if err != nil {

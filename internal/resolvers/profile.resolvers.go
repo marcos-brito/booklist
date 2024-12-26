@@ -12,6 +12,20 @@ import (
 	"github.com/marcos-brito/booklist/internal/store"
 )
 
+// Settings is the resolver for the settings field.
+func (r *profileResolver) Settings(ctx context.Context, obj *models.Profile) (*models.Settings, error) {
+	session, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	settings, err := store.NewUserStore(store.DB).FindSettingsByUserUuid(session.Identity.Id)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return settings, nil
+}
 // Collection is the resolver for the collection field.
 func (r *profileResolver) Collection(ctx context.Context, obj *models.Profile) ([]*models.CollectionItem, error) {
 	session, ok := auth.GetSession(ctx)

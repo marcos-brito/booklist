@@ -82,6 +82,14 @@ func StartPostgres() testcontainers.Container {
 	return container
 }
 
+func TestSettings(t *testing.T) {
+	resolver := &resolvers.Resolver{}
+	ctx, profile := NewUser(t)
+    got, err := resolver.Profile().Settings(ctx, profile)
+
+    assert.Nil(t, err)
+    assert.Equal(t, got.ProfileID, profile.ID)
+}
 func TestCollection(t *testing.T) {
 	resolver := &resolvers.Resolver{}
 	ctx, _ := NewUser(t)
