@@ -1,11 +1,12 @@
 scalar Time
+scalar UUID
 
 extend type Query {
-    me: Profile
+    me: CurrentUser
 }
 
-type Profile {
-    uuid: ID!
+type CurrentUser {
+    uuid: UUID!
     name: String!
     email: String!
     settings: Settings!

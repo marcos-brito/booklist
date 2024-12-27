@@ -103,9 +103,25 @@ models:
         fields:
             book:
                 resolver: true
-    Profile:
+    CurrentUser:
         fields:
             settings:
                 resolver: true
+            lists:
+                resolver: true
             collection:
+                resolver: true
+    User:
+        fields:
+            name:
+                resolver: true
+            lists:
+                resolver: true
+            collection:
+                resolver: true
+    List:
+        fields:
+            books:
+                resolver: true
+            owner:
                 resolver: true

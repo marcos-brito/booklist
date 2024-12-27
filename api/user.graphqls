@@ -1,0 +1,10 @@
+extend type Query {
+    user(uuid: UUID!): User
+}
+
+type User {
+    uuid: UUID!
+    name: String
+    lists: [List!]
+    collection: [CollectionItem!]
+}

@@ -3,4 +3,5 @@ type List {
     name: String!
     description: String
     books: [Book!]!
+    owner: User!
 }
