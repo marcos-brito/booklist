@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/google/uuid"
 	"github.com/marcos-brito/booklist/internal/models"
 	"gorm.io/gorm"
 )
@@ -24,7 +25,7 @@ func (bs *BookStore) FindById(id uint) (*models.Book, error) {
 	return book, nil
 }
 
-func (bs *BookStore) Create(input *models.CreateBook, userUuid string) (*models.Book, error) {
+func (bs *BookStore) Create(input *models.CreateBook, userUuid uuid.UUID) (*models.Book, error) {
 	authors := []*models.Author{}
 	err := bs.DB.Find(&authors, input.Authors).Error
 	if err != nil {
@@ -32,7 +33,7 @@ func (bs *BookStore) Create(input *models.CreateBook, userUuid string) (*models.
 	}
 
 	profile := &models.Profile{}
-	err = bs.DB.First(profile, &models.Profile{UserUUID: userUuid}).Error
+	err = bs.DB.First(profile, &models.Profile{UUID: userUuid}).Error
 	if err != nil {
 		return nil, err
 	}

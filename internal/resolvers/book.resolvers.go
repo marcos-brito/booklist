@@ -15,13 +15,13 @@ import (
 )
 
 // AddedBy is the resolver for the addedBy field.
-func (r *bookResolver) AddedBy(ctx context.Context, obj *models.Book) (*models.Profile, error) {
+func (r *bookResolver) AddedBy(ctx context.Context, obj *models.Book) (*models.User, error) {
 	panic(fmt.Errorf("not implemented: AddedBy - addedBy"))
 }
 
 // CreateBook is the resolver for the createBook field.
 func (r *mutationResolver) CreateBook(ctx context.Context, input models.CreateBook) (*models.Book, error) {
-	session, ok := auth.GetSession(ctx)
+	_, ident, ok := auth.GetSession(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}
@@ -38,7 +38,7 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input models.CreateBo
 		}
 	}
 
-	book, err := store.NewBookStore(store.DB).Create(&input, session.Identity.Id)
+	book, err := store.NewBookStore(store.DB).Create(&input, ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}

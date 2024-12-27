@@ -3,23 +3,19 @@ package models
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type Profile struct {
 	gorm.Model
 	// Comes from Ory
-	UserUUID   string `gorm:"uniqueIndex"`
-	Name       string `gorm:"-:all"`
-	Email      string `gorm:"-:all"`
+    UUID   uuid.UUID `gorm:"uniqueIndex;type:uuid"`
 	Settings   Settings
 	Lists      []List
 	Collection []CollectionItem
 }
 
-func (p *Profile) UUID() string {
-	return p.UserUUID
-}
 
 type Settings struct {
 	gorm.Model

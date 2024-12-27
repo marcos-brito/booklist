@@ -1,6 +1,7 @@
 package store
 
 import (
+	"github.com/google/uuid"
 	"github.com/marcos-brito/booklist/internal/models"
 	"gorm.io/gorm"
 )
@@ -13,9 +14,9 @@ func NewUserStore(db *gorm.DB) *UserStore {
 	return &UserStore{db}
 }
 
-func (us *UserStore) FindProfileByUserUuid(uuid string) (*models.Profile, error) {
+func (us *UserStore) FindProfileByUserUuid(uuid uuid.UUID) (*models.Profile, error) {
 	profile := &models.Profile{}
-	err := us.DB.Where(models.Profile{UserUUID: uuid}).
+	err := us.DB.Where(models.Profile{UUID: uuid}).
 		Attrs(models.Profile{Settings: models.Settings{Private: true}}).FirstOrCreate(profile).Error
 
 	if err != nil {
@@ -36,9 +37,9 @@ func (us *UserStore) FindItemById(id uint) (*models.CollectionItem, error) {
 	return item, nil
 }
 
-func (us *UserStore) FindSettingsByUserUuid(uuid string) (*models.Settings, error) {
+func (us *UserStore) FindSettingsByUserUuid(uuid uuid.UUID) (*models.Settings, error) {
 	profile := &models.Profile{}
-    err := us.DB.First(profile, &models.Profile{UserUUID: uuid}).Error
+    err := us.DB.First(profile, &models.Profile{UUID: uuid}).Error
     if err != nil {
         return nil, err
     }
@@ -52,7 +53,7 @@ func (us *UserStore) FindSettingsByUserUuid(uuid string) (*models.Settings, erro
 	return settings, nil
 }
 
-func (us *UserStore) FindItems(userUuid string) ([]*models.CollectionItem, error) {
+func (us *UserStore) FindItems(userUuid uuid.UUID) ([]*models.CollectionItem, error) {
     profile, err := us.FindProfileByUserUuid(userUuid)
 	if err != nil {
 		return nil, err
@@ -67,9 +68,9 @@ func (us *UserStore) FindItems(userUuid string) ([]*models.CollectionItem, error
 	return items, nil
 }
 
-func (us *UserStore) AddToCollection(userUuid string, bookID uint, status models.Status) (*models.CollectionItem, error) {
+func (us *UserStore) AddToCollection(userUuid uuid.UUID, bookID uint, status models.Status) (*models.CollectionItem, error) {
 	profile := &models.Profile{}
-	err := us.DB.First(profile, &models.Profile{UserUUID: userUuid}).Error
+	err := us.DB.First(profile, &models.Profile{UUID: userUuid}).Error
 	if err != nil {
 		return nil, err
 	}

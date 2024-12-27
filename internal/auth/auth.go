@@ -5,20 +5,27 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
 	ory "github.com/ory/client-go"
 )
 
 type SessionContextKey string
 
 type Identity struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
+	UUID  uuid.UUID
+    Traits Traits
+    *ory.Identity
+}
+
+type Traits struct {
+    Name string
+    Email string
 }
 
 const session_context_key SessionContextKey = "req.session"
 
-func ParseIdentity(obj interface{}) (*Identity, error) {
-	id, ok := obj.(*Identity)
+func ParseTraits(obj interface{}) (*Traits, error) {
+	id, ok := obj.(*Traits)
 
 	if !ok {
 		return nil, fmt.Errorf("can't parse %v into identity", obj)
@@ -41,12 +48,27 @@ func AddSessionToContext(ctx context.Context, session *ory.Session) context.Cont
 	return context.WithValue(ctx, session_context_key, session)
 }
 
-func GetSession(ctx context.Context) (*ory.Session, bool) {
+func GetSession(ctx context.Context) ( *ory.Session, *Identity, bool) {
 	session, ok := ctx.Value(session_context_key).(*ory.Session)
-
 	if !ok || session == nil {
-		return nil, false
+		return nil, nil, false
 	}
 
-	return session, true
+	traits, err := ParseTraits(session.Identity.Traits)
+	if err != nil {
+		return nil, nil, false
+	}
+
+	uuid, err := uuid.Parse(session.Identity.Id)
+	if err != nil {
+		return nil, nil, false
+	}
+
+    ident := &Identity{
+        UUID: uuid,
+        Traits: *traits,
+        Identity: session.Identity,
+    }
+
+	return session, ident, true
 }

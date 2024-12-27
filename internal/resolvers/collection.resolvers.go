@@ -26,7 +26,7 @@ func (r *collectionItemResolver) Book(ctx context.Context, obj *models.Collectio
 
 // AddToCollection is the resolver for the addToCollection field.
 func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, status *models.Status) (*models.CollectionItem, error) {
-	session, ok := auth.GetSession(ctx)
+	_, ident, ok := auth.GetSession(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}
@@ -41,7 +41,7 @@ func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, sta
 		*status = models.StatusToRead
 	}
 
-	item, err := store.NewUserStore(store.DB).AddToCollection(session.Identity.Id, bookID, *status)
+	item, err := store.NewUserStore(store.DB).AddToCollection(ident.UUID, bookID, *status)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -51,13 +51,13 @@ func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, sta
 
 // DeleteFromCollection is the resolver for the deleteFromCollection field.
 func (r *mutationResolver) DeleteFromCollection(ctx context.Context, itemID uint) (*models.CollectionItem, error) {
-	session, ok := auth.GetSession(ctx)
+	_,ident, ok := auth.GetSession(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}
 
 	userStore := store.NewUserStore(store.DB)
-	profile, err := userStore.FindProfileByUserUuid(session.Identity.Id)
+	profile, err := userStore.FindProfileByUserUuid(ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -77,13 +77,13 @@ func (r *mutationResolver) DeleteFromCollection(ctx context.Context, itemID uint
 
 // ChangeItemStatus is the resolver for the changeItemStatus field.
 func (r *mutationResolver) ChangeItemStatus(ctx context.Context, itemID uint, status models.Status) (*models.CollectionItem, error) {
-	session, ok := auth.GetSession(ctx)
+	_,ident, ok := auth.GetSession(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}
 
 	userStore := store.NewUserStore(store.DB)
-	profile, err := userStore.FindProfileByUserUuid(session.Identity.Id)
+	profile, err := userStore.FindProfileByUserUuid(ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
