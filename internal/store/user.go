@@ -94,6 +94,21 @@ func (us *UserStore) FindLists(userUuid uuid.UUID) ([]*models.List, error) {
 	return lists, nil
 }
 
+func (us *UserStore) FindPublicLists(userUuid uuid.UUID) ([]*models.List, error) {
+	profile, err := us.FindProfileByUserUuid(userUuid)
+	if err != nil {
+		return nil, err
+	}
+
+	lists := []*models.List{}
+    err = us.DB.Find(&lists, models.List{ProfileID: profile.ID, Published: true}).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return lists, nil
+}
+
 func (us *UserStore) AddToCollection(userUuid uuid.UUID, bookID uint, status models.Status) (*models.CollectionItem, error) {
 	profile := &models.Profile{}
 	err := us.DB.First(profile, &models.Profile{UUID: userUuid}).Error

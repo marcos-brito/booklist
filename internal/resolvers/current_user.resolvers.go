@@ -6,7 +6,6 @@ package resolvers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/marcos-brito/booklist/internal/auth"
 	"github.com/marcos-brito/booklist/internal/models"
@@ -25,7 +24,12 @@ func (r *currentUserResolver) Settings(ctx context.Context, obj *models.CurrentU
 
 // Lists is the resolver for the lists field.
 func (r *currentUserResolver) Lists(ctx context.Context, obj *models.CurrentUser) ([]*models.List, error) {
-	panic(fmt.Errorf("not implemented: Lists - lists"))
+	lists, err := store.NewUserStore(store.DB).FindLists(obj.UUID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return lists, nil
 }
 
 // Collection is the resolver for the collection field.
@@ -60,10 +64,10 @@ func (r *queryResolver) Me(ctx context.Context) (*models.CurrentUser, error) {
 		return nil, nil
 	}
 
-    _, err := store.NewUserStore(store.DB).FindProfileByUserUuid(ident.UUID)
-    if err != nil {
-        return nil, ErrInternal
-    }
+	_, err := store.NewUserStore(store.DB).FindProfileByUserUuid(ident.UUID)
+	if err != nil {
+		return nil, ErrInternal
+	}
 
 	user := &models.CurrentUser{
 		UUID:  ident.UUID,

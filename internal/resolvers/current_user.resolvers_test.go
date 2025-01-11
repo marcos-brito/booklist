@@ -87,9 +87,20 @@ func TestSettings(t *testing.T) {
 }
 
 func TestLists(t *testing.T) {
+	resolver := &resolvers.Resolver{}
 
 	t.Run("should return user lists", func(t *testing.T) {
+		ctx, user := NewUser(t)
+		created := []*models.List{
+			CreateList(t, ctx, false),
+			CreateList(t, ctx, true),
+		}
 
+		lists, err := resolver.CurrentUser().Lists(ctx, user)
+		assert.Nil(t, err)
+        for _, list := range created {
+            assert.Contains(t, lists, list)
+        }
 	})
 }
 

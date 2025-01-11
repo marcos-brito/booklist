@@ -55,10 +55,32 @@ func (r *userResolver) Name(ctx context.Context, obj *models.User) (*string, err
 
 // Lists is the resolver for the lists field.
 func (r *userResolver) Lists(ctx context.Context, obj *models.User) ([]*models.List, error) {
+	lists, err := store.NewUserStore(store.DB).FindPublicLists(obj.UUID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return lists, nil
 }
 
 // Collection is the resolver for the collection field.
 func (r *userResolver) Collection(ctx context.Context, obj *models.User) ([]*models.CollectionItem, error) {
+	userStore := store.NewUserStore(store.DB)
+	settings, err := userStore.FindSettingsByUserUuid(obj.UUID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	if !settings.ShowCollection {
+		return nil, nil
+	}
+
+	collection, err := userStore.FindItems(obj.UUID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return collection, nil
 }
 
 // User returns UserResolver implementation.
