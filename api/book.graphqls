@@ -12,7 +12,7 @@ type Book {
     needsApproval: Boolean
     authors: [Author!]!
     publisher: Publisher
-    addedBy: User!
+    addedBy: User
 }
 
 type Author {

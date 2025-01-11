@@ -1,5 +1,5 @@
 extend type Query {
-    user(uuid: UUID!): User
+    user(uuid: UUID!): User!
 }
 
 type User {

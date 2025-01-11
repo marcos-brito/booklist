@@ -6,31 +6,59 @@ package resolvers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/marcos-brito/booklist/internal/auth"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/store"
+	"gorm.io/gorm"
 )
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, uuid uuid.UUID) (*models.User, error) {
-	panic(fmt.Errorf("not implemented: User - user"))
+	userStore := store.NewUserStore(store.DB)
+	settings, err := userStore.FindSettingsByUserUuid(uuid)
+	if err != nil {
+		return nil, ErrWithOrInternal(gorm.ErrRecordNotFound, err, ErrBadUuid(uuid, "user"))
+	}
+
+	if settings.Private {
+		return nil, ErrBadUuid(uuid, "user")
+	}
+
+	user := &models.User{
+		UUID: uuid,
+	}
+
+	return user, nil
 }
 
 // Name is the resolver for the name field.
 func (r *userResolver) Name(ctx context.Context, obj *models.User) (*string, error) {
-	panic(fmt.Errorf("not implemented: Name - name"))
+	settings, err := store.NewUserStore(store.DB).FindSettingsByUserUuid(obj.UUID)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	if !settings.ShowName {
+		return nil, nil
+	}
+
+	// TODO: use an actual client
+	ident, ok := auth.FindIdentity(obj.UUID, nil)
+	if !ok {
+		return nil, ErrInternal
+	}
+
+	return &ident.Traits.Name, nil
 }
 
 // Lists is the resolver for the lists field.
 func (r *userResolver) Lists(ctx context.Context, obj *models.User) ([]*models.List, error) {
-	panic(fmt.Errorf("not implemented: Lists - lists"))
 }
 
 // Collection is the resolver for the collection field.
 func (r *userResolver) Collection(ctx context.Context, obj *models.User) ([]*models.CollectionItem, error) {
-	panic(fmt.Errorf("not implemented: Collection - collection"))
 }
 
 // User returns UserResolver implementation.
