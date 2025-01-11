@@ -1,6 +1,8 @@
 package resolvers_test
 
 import (
+	"context"
+	"fmt"
 	"math/rand/v2"
 	"testing"
 
@@ -9,6 +11,19 @@ import (
 	"github.com/marcos-brito/booklist/internal/resolvers"
 	"github.com/stretchr/testify/assert"
 )
+
+func CreateBook(t *testing.T, ctx context.Context) *models.Book {
+	resolver := resolvers.Resolver{}
+	input := models.CreateBook{
+		Title: fmt.Sprintf("Book:%d", rand.Int()),
+		Isbn:  fmt.Sprintf("%013d", rand.Int64N(1e13)),
+	}
+
+	book, err := resolver.Mutation().CreateBook(ctx, input)
+	assert.Nil(t, err)
+
+	return book
+}
 
 func TestCreateBook(t *testing.T) {
 	resolver := resolvers.Resolver{}

@@ -1,7 +1,24 @@
+extend type Mutation {
+    createList(
+        name: String!
+        description: String
+        publish: Boolean = False
+    ): List!
+    deleteList(id: ID!): List!
+    publishList(id: ID!): List!
+    unpublishList(id: ID!): List!
+    cloneList(id: ID!): List!
+    followList(id: ID!): List!
+    unfollowList(id: ID!): List!
+    addToList(listId: ID!, bookId: ID!): List!
+    removeFromList(listId: ID!, bookId: ID!): List!
+}
+
 type List {
     id: ID!
     name: String!
     description: String
+    published: Boolean!
     books: [Book!]!
-    owner: User!
+    owner: User
 }
