@@ -38,7 +38,7 @@ func TestCreateBook(t *testing.T) {
 		got, err := resolver.Mutation().CreateBook(ctx, input)
 		assert.Nil(t, err)
 
-        // addedBy, err := resolver.Book().AddedBy(ctx, got)
+		// addedBy, err := resolver.Book().AddedBy(ctx, got)
 		assert.Nil(t, err)
 		assert.True(t, got.NeedsApproval)
 		assert.Equal(t, got.ISBN, input.Isbn)

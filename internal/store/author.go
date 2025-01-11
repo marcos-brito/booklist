@@ -6,24 +6,24 @@ import (
 )
 
 type AuthorStore struct {
-    *gorm.DB
+	*gorm.DB
 }
 
 func NewAuthorStore(db *gorm.DB) *AuthorStore {
-    return &AuthorStore {
-        db,
-    }
+	return &AuthorStore{
+		db,
+	}
 }
 
-func (as *AuthorStore) FindById(id uint) (*models.Author ,error) {
-    author := &models.Author{}
+func (as *AuthorStore) FindById(id uint) (*models.Author, error) {
+	author := &models.Author{}
 
-    err := as.DB.First(author, id).Error
-    if err != nil {
-        return nil, err
-    }
+	err := as.DB.First(author, id).Error
+	if err != nil {
+		return nil, err
+	}
 
-    return author, nil
+	return author, nil
 }
 
 func (as *AuthorStore) FindManyById(ids ...uint) ([]*models.Author, error, *uint) {
@@ -39,5 +39,5 @@ func (as *AuthorStore) FindManyById(ids ...uint) ([]*models.Author, error, *uint
 		authors = append(authors, author)
 	}
 
-    return authors, nil, nil
+	return authors, nil, nil
 }

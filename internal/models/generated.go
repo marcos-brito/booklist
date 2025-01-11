@@ -7,6 +7,8 @@ import (
 	"io"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type CreateBook struct {
@@ -19,10 +21,35 @@ type CreateBook struct {
 	Publisher   *uint      `json:"publisher,omitempty"`
 }
 
+type CurrentUser struct {
+	UUID       uuid.UUID         `json:"uuid"`
+	Name       string            `json:"name"`
+	Email      string            `json:"email"`
+	Settings   *Settings         `json:"settings"`
+	Lists      []*List           `json:"lists"`
+	Collection []*CollectionItem `json:"collection"`
+}
+
 type Mutation struct {
 }
 
 type Query struct {
+}
+
+type UpdateSettings struct {
+	Private            bool `json:"private"`
+	ShowName           bool `json:"showName"`
+	ShowStats          bool `json:"showStats"`
+	ShowCollection     bool `json:"showCollection"`
+	ShowListsFollows   bool `json:"showListsFollows"`
+	ShowAuthorsFollows bool `json:"showAuthorsFollows"`
+}
+
+type User struct {
+	UUID       uuid.UUID         `json:"uuid"`
+	Name       *string           `json:"name,omitempty"`
+	Lists      []*List           `json:"lists,omitempty"`
+	Collection []*CollectionItem `json:"collection,omitempty"`
 }
 
 type Status string

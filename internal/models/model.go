@@ -10,12 +10,11 @@ import (
 type Profile struct {
 	gorm.Model
 	// Comes from Ory
-    UUID   uuid.UUID `gorm:"uniqueIndex;type:uuid"`
+	UUID       uuid.UUID `gorm:"uniqueIndex;type:uuid"`
 	Settings   Settings
 	Lists      []List
 	Collection []CollectionItem
 }
-
 
 type Settings struct {
 	gorm.Model
@@ -32,7 +31,8 @@ type List struct {
 	gorm.Model
 	ProfileID   uint
 	Name        string
-	Description string
+	Description *string
+	Published   bool
 	Books       []Book `gorm:"many2many:list_books;"`
 }
 

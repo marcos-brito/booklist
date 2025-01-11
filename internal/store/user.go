@@ -101,7 +101,7 @@ func (us *UserStore) FindPublicLists(userUuid uuid.UUID) ([]*models.List, error)
 	}
 
 	lists := []*models.List{}
-    err = us.DB.Find(&lists, models.List{ProfileID: profile.ID, Published: true}).Error
+	err = us.DB.Find(&lists, models.List{ProfileID: profile.ID, Published: true}).Error
 	if err != nil {
 		return nil, err
 	}

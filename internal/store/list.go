@@ -162,39 +162,39 @@ func (ls *ListStore) Unfollow(id uint, userUuid uuid.UUID) (*models.List, error)
 }
 
 func (ls *ListStore) AddBook(listId, bookId uint) (*models.List, error) {
-    list := &models.List{}
-    book := &models.Book{}
-    list.ID = listId
-    book.ID = bookId
+	list := &models.List{}
+	book := &models.Book{}
+	list.ID = listId
+	book.ID = bookId
 
 	err := ls.DB.Model(list).Association("Books").Append(book)
 	if err != nil {
 		return nil, err
 	}
 
-    list, err = ls.FindById(listId) 
-    if err != nil {
-        return nil, err
-    }
+	list, err = ls.FindById(listId)
+	if err != nil {
+		return nil, err
+	}
 
 	return list, nil
 }
 
-func (ls *ListStore) RemoveBook(listId, bookId uint)  (*models.List, error) {
-    list := &models.List{}
-    book := &models.Book{}
-    list.ID = listId
-    book.ID = bookId
+func (ls *ListStore) RemoveBook(listId, bookId uint) (*models.List, error) {
+	list := &models.List{}
+	book := &models.Book{}
+	list.ID = listId
+	book.ID = bookId
 
 	err := ls.DB.Model(list).Association("Books").Delete(book)
 	if err != nil {
 		return nil, err
 	}
 
-    list, err = ls.FindById(listId) 
-    if err != nil {
-        return nil, err
-    }
+	list, err = ls.FindById(listId)
+	if err != nil {
+		return nil, err
+	}
 
 	return list, nil
 }

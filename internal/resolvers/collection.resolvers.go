@@ -51,7 +51,7 @@ func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, sta
 
 // DeleteFromCollection is the resolver for the deleteFromCollection field.
 func (r *mutationResolver) DeleteFromCollection(ctx context.Context, itemID uint) (*models.CollectionItem, error) {
-	_,ident, ok := auth.GetSession(ctx)
+	_, ident, ok := auth.GetSession(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}
@@ -77,7 +77,7 @@ func (r *mutationResolver) DeleteFromCollection(ctx context.Context, itemID uint
 
 // ChangeItemStatus is the resolver for the changeItemStatus field.
 func (r *mutationResolver) ChangeItemStatus(ctx context.Context, itemID uint, status models.Status) (*models.CollectionItem, error) {
-	_,ident, ok := auth.GetSession(ctx)
+	_, ident, ok := auth.GetSession(ctx)
 	if !ok {
 		return nil, ErrUnauthorized
 	}

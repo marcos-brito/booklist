@@ -98,9 +98,9 @@ func TestLists(t *testing.T) {
 
 		lists, err := resolver.CurrentUser().Lists(ctx, user)
 		assert.Nil(t, err)
-        for _, list := range created {
-            assert.Contains(t, lists, list)
-        }
+		for _, list := range created {
+			assert.Contains(t, lists, list)
+		}
 	})
 }
 

@@ -27,11 +27,11 @@ func main() {
 	}
 
 	store.With(db)
-    err = store.Migrate(db)
+	err = store.Migrate(db)
 
-    if err != nil {
-        panic(fmt.Errorf("couldn't run migrations: %s", err))
-    }
+	if err != nil {
+		panic(fmt.Errorf("couldn't run migrations: %s", err))
+	}
 
 	router := http.NewServeMux()
 	graphql := handler.NewDefaultServer(resolvers.NewExecutableSchema(resolvers.Config{Resolvers: &resolvers.Resolver{}}))

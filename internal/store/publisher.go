@@ -6,20 +6,20 @@ import (
 )
 
 type PublisherStore struct {
-    *gorm.DB
+	*gorm.DB
 }
 
 func NewPublisherStore(db *gorm.DB) *PublisherStore {
-    return &PublisherStore {db}
+	return &PublisherStore{db}
 }
 
-func (as *PublisherStore) FindById(id uint) (*models.Publisher ,error) {
-    publisher := &models.Publisher{}
+func (as *PublisherStore) FindById(id uint) (*models.Publisher, error) {
+	publisher := &models.Publisher{}
 
-    err := as.DB.First(publisher, id).Error
-    if err != nil {
-        return nil, err
-    }
+	err := as.DB.First(publisher, id).Error
+	if err != nil {
+		return nil, err
+	}
 
-    return publisher, nil
+	return publisher, nil
 }
