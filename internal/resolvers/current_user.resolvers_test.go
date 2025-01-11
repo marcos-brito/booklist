@@ -131,6 +131,35 @@ func TestCollection(t *testing.T) {
 	})
 }
 
+func TestUpdateSettings(t *testing.T) {
+	resolver := resolvers.Resolver{}
+
+	t.Run("should changes user settings", func(t *testing.T) {
+		ctx, user := NewUser(t)
+		changes := models.UpdateSettings{
+			ShowName:       true,
+			ShowCollection: true,
+		}
+
+		_, err := resolver.Mutation().UpdateSettings(ctx, changes)
+		assert.Nil(t, err)
+
+		got, err := resolver.CurrentUser().Settings(ctx, user)
+		assert.Nil(t, err)
+		assert.True(t, got.ShowName)
+		assert.True(t, got.ShowCollection)
+	})
+
+	t.Run("should fail if there is no session", func(t *testing.T) {
+		ctx, _ := NewUser(t)
+		ctx = auth.AddSessionToContext(ctx, nil)
+		settings, err := resolver.Mutation().UpdateSettings(ctx, models.UpdateSettings{})
+
+		assert.Nil(t, settings)
+		assert.ErrorIs(t, err, resolvers.ErrUnauthorized)
+	})
+}
+
 func TestMe(t *testing.T) {
 	resolver := resolvers.Resolver{}
 

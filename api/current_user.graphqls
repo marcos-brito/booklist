@@ -5,6 +5,10 @@ extend type Query {
     me: CurrentUser
 }
 
+extend type Mutation {
+    updateSettings(changes: UpdateSettings!): Settings!
+}
+
 type CurrentUser {
     uuid: UUID!
     name: String!
@@ -15,6 +19,15 @@ type CurrentUser {
 }
 
 type Settings {
+    private: Boolean!
+    showName: Boolean!
+    showStats: Boolean!
+    showCollection: Boolean!
+    showListsFollows: Boolean!
+    showAuthorsFollows: Boolean!
+}
+
+input UpdateSettings {
     private: Boolean!
     showName: Boolean!
     showStats: Boolean!

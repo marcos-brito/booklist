@@ -38,6 +38,21 @@ func (r *currentUserResolver) Collection(ctx context.Context, obj *models.Curren
 	return items, nil
 }
 
+// UpdateSettings is the resolver for the updateSettings field.
+func (r *mutationResolver) UpdateSettings(ctx context.Context, changes models.UpdateSettings) (*models.Settings, error) {
+	_, ident, ok := auth.GetSession(ctx)
+	if !ok {
+		return nil, ErrUnauthorized
+	}
+
+	settings, err := store.NewUserStore(store.DB).UpdateSettings(ident.UUID, changes)
+	if err != nil {
+		return nil, ErrInternal
+	}
+
+	return settings, nil
+}
+
 // Me is the resolver for the me field.
 func (r *queryResolver) Me(ctx context.Context) (*models.CurrentUser, error) {
 	_, ident, ok := auth.GetSession(ctx)
