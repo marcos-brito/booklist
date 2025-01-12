@@ -8,6 +8,7 @@ import (
 	"context"
 
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/store"
 	"gorm.io/gorm"
@@ -15,7 +16,7 @@ import (
 
 // Book is the resolver for the book field.
 func (r *collectionItemResolver) Book(ctx context.Context, obj *models.CollectionItem) (*models.Book, error) {
-	book, err := store.NewBookStore(store.DB).FindById(obj.BookID)
+	book, err := store.NewBookStore(conn.DB).FindById(obj.BookID)
 
 	if err != nil {
 		return nil, ErrInternal
@@ -31,7 +32,7 @@ func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, sta
 		return nil, ErrUnauthorized
 	}
 
-	_, err := store.NewBookStore(store.DB).FindById(bookID)
+	_, err := store.NewBookStore(conn.DB).FindById(bookID)
 	if err != nil {
 		return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(bookID, "book"))
 	}
@@ -41,7 +42,7 @@ func (r *mutationResolver) AddToCollection(ctx context.Context, bookID uint, sta
 		*status = models.StatusToRead
 	}
 
-	item, err := store.NewUserStore(store.DB).AddToCollection(ident.UUID, bookID, *status)
+	item, err := store.NewUserStore(conn.DB).AddToCollection(ident.UUID, bookID, *status)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -56,7 +57,7 @@ func (r *mutationResolver) DeleteFromCollection(ctx context.Context, itemID uint
 		return nil, ErrUnauthorized
 	}
 
-	userStore := store.NewUserStore(store.DB)
+	userStore := store.NewUserStore(conn.DB)
 	profile, err := userStore.FindProfileByUserUuid(ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
@@ -82,7 +83,7 @@ func (r *mutationResolver) ChangeItemStatus(ctx context.Context, itemID uint, st
 		return nil, ErrUnauthorized
 	}
 
-	userStore := store.NewUserStore(store.DB)
+	userStore := store.NewUserStore(conn.DB)
 	profile, err := userStore.FindProfileByUserUuid(ident.UUID)
 	if err != nil {
 		return nil, ErrInternal

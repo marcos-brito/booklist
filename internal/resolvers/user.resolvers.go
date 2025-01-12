@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/store"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ import (
 
 // User is the resolver for the user field.
 func (r *queryResolver) User(ctx context.Context, uuid uuid.UUID) (*models.User, error) {
-	userStore := store.NewUserStore(store.DB)
+	userStore := store.NewUserStore(conn.DB)
 	settings, err := userStore.FindSettingsByUserUuid(uuid)
 	if err != nil {
 		return nil, ErrWithOrInternal(gorm.ErrRecordNotFound, err, ErrBadUuid(uuid, "user"))
@@ -35,7 +36,7 @@ func (r *queryResolver) User(ctx context.Context, uuid uuid.UUID) (*models.User,
 
 // Name is the resolver for the name field.
 func (r *userResolver) Name(ctx context.Context, obj *models.User) (*string, error) {
-	settings, err := store.NewUserStore(store.DB).FindSettingsByUserUuid(obj.UUID)
+	settings, err := store.NewUserStore(conn.DB).FindSettingsByUserUuid(obj.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -44,8 +45,7 @@ func (r *userResolver) Name(ctx context.Context, obj *models.User) (*string, err
 		return nil, nil
 	}
 
-	// TODO: use an actual client
-	ident, ok := auth.FindIdentity(obj.UUID, nil)
+	ident, ok := auth.FindIdentity(obj.UUID, conn.Ory)
 	if !ok {
 		return nil, ErrInternal
 	}
@@ -55,7 +55,7 @@ func (r *userResolver) Name(ctx context.Context, obj *models.User) (*string, err
 
 // Lists is the resolver for the lists field.
 func (r *userResolver) Lists(ctx context.Context, obj *models.User) ([]*models.List, error) {
-	lists, err := store.NewUserStore(store.DB).FindPublicLists(obj.UUID)
+	lists, err := store.NewUserStore(conn.DB).FindPublicLists(obj.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -65,7 +65,7 @@ func (r *userResolver) Lists(ctx context.Context, obj *models.User) ([]*models.L
 
 // Collection is the resolver for the collection field.
 func (r *userResolver) Collection(ctx context.Context, obj *models.User) ([]*models.CollectionItem, error) {
-	userStore := store.NewUserStore(store.DB)
+	userStore := store.NewUserStore(conn.DB)
 	settings, err := userStore.FindSettingsByUserUuid(obj.UUID)
 	if err != nil {
 		return nil, ErrInternal

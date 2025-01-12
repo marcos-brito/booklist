@@ -1,4 +1,4 @@
-package store
+package conn
 
 import (
 	"fmt"
@@ -9,9 +9,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// Hate the global, but couldn't find another way.
-// It gets initialized in cmd/graph. The graphql
-// api should be the only service using it.
 var DB *gorm.DB
 
 type DSN struct {
@@ -36,22 +33,22 @@ func (dsn *DSN) String() string {
 		dsn.host, dsn.user, dsn.password, dsn.dbname, dsn.port, sslmode)
 }
 
-func With(db *gorm.DB) {
+func InitDatabase(db *gorm.DB) {
 	DB = db
 }
 
 func Migrate(db *gorm.DB) error {
-    err := db.AutoMigrate(&models.Book{}, &models.Author{}, &models.Publisher{}, &models.Profile{},
+	err := db.AutoMigrate(&models.Book{}, &models.Author{}, &models.Publisher{}, &models.Profile{},
 		&models.Settings{}, &models.List{}, &models.CollectionItem{})
 
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
-    return nil
+	return nil
 }
 
-func NewConnection() (*gorm.DB, error) {
+func NewPostgresConnection() (*gorm.DB, error) {
 	dsn := DSN{
 		host:     os.Getenv("POSTGRES_HOST"),
 		user:     os.Getenv("POSTGRES_USER"),

@@ -2,7 +2,7 @@ package resolvers_test
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"os"
 	"slices"
 	"testing"
@@ -10,9 +10,9 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/resolvers"
-	"github.com/marcos-brito/booklist/internal/store"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -29,24 +29,24 @@ func TestMain(m *testing.M) {
 func Setup() func() {
 	err := godotenv.Load("../../.env")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	container := StartPostgres()
-	db, err := store.NewConnection()
+	db, err := conn.NewPostgresConnection()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	store.With(db)
-	err = store.Migrate(db)
+	conn.InitDatabase(db)
+	err = conn.Migrate(db)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	return func() {
 		if err := testcontainers.TerminateContainer(container); err != nil {
-			panic(fmt.Sprintf("failed to terminate container: %s", err))
+			log.Fatalf("failed to terminate container: %s", err)
 		}
 	}
 }
@@ -65,15 +65,18 @@ func StartPostgres() testcontainers.Container {
 	)
 
 	if err != nil {
-		panic(fmt.Sprintf("failed to start container: %s", err))
+		log.Fatalf("failed to start container: %s", err)
 	}
 
 	port, err := container.MappedPort(ctx, "5432")
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	os.Setenv("POSTGRES_PORT", port.Port())
+	err = os.Setenv("POSTGRES_PORT", port.Port())
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	return container
 }

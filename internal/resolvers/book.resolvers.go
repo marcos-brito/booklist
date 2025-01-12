@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/store"
 	"gorm.io/gorm"
@@ -26,19 +27,19 @@ func (r *mutationResolver) CreateBook(ctx context.Context, input models.CreateBo
 		return nil, ErrUnauthorized
 	}
 
-	_, err, badId := store.NewAuthorStore(store.DB).FindManyById(input.Authors...)
+	_, err, badId := store.NewAuthorStore(conn.DB).FindManyById(input.Authors...)
 	if err != nil {
 		return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(*badId, "author"))
 	}
 
 	if input.Publisher != nil {
-		_, err = store.NewPublisherStore(store.DB).FindById(*input.Publisher)
+		_, err = store.NewPublisherStore(conn.DB).FindById(*input.Publisher)
 		if err != nil {
 			return nil, ErrWithOrInternal(err, gorm.ErrRecordNotFound, ErrBadId(*input.Publisher, "publisher"))
 		}
 	}
 
-	book, err := store.NewBookStore(store.DB).Create(&input, ident.UUID)
+	book, err := store.NewBookStore(conn.DB).Create(&input, ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}

@@ -8,13 +8,14 @@ import (
 	"context"
 
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/store"
 )
 
 // Settings is the resolver for the settings field.
 func (r *currentUserResolver) Settings(ctx context.Context, obj *models.CurrentUser) (*models.Settings, error) {
-	settings, err := store.NewUserStore(store.DB).FindSettingsByUserUuid(obj.UUID)
+	settings, err := store.NewUserStore(conn.DB).FindSettingsByUserUuid(obj.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -24,7 +25,7 @@ func (r *currentUserResolver) Settings(ctx context.Context, obj *models.CurrentU
 
 // Lists is the resolver for the lists field.
 func (r *currentUserResolver) Lists(ctx context.Context, obj *models.CurrentUser) ([]*models.List, error) {
-	lists, err := store.NewUserStore(store.DB).FindLists(obj.UUID)
+	lists, err := store.NewUserStore(conn.DB).FindLists(obj.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -34,7 +35,7 @@ func (r *currentUserResolver) Lists(ctx context.Context, obj *models.CurrentUser
 
 // Collection is the resolver for the collection field.
 func (r *currentUserResolver) Collection(ctx context.Context, obj *models.CurrentUser) ([]*models.CollectionItem, error) {
-	items, err := store.NewUserStore(store.DB).FindItems(obj.UUID)
+	items, err := store.NewUserStore(conn.DB).FindItems(obj.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -49,7 +50,7 @@ func (r *mutationResolver) UpdateSettings(ctx context.Context, changes models.Up
 		return nil, ErrUnauthorized
 	}
 
-	settings, err := store.NewUserStore(store.DB).UpdateSettings(ident.UUID, changes)
+	settings, err := store.NewUserStore(conn.DB).UpdateSettings(ident.UUID, changes)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -64,7 +65,7 @@ func (r *queryResolver) Me(ctx context.Context) (*models.CurrentUser, error) {
 		return nil, nil
 	}
 
-	_, err := store.NewUserStore(store.DB).FindProfileByUserUuid(ident.UUID)
+	_, err := store.NewUserStore(conn.DB).FindProfileByUserUuid(ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}

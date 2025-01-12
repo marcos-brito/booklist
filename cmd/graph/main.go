@@ -1,37 +1,54 @@
 package main
 
 import (
-	"fmt"
+	"context"
+	"log"
 	"net/http"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/playground"
-	_ "github.com/joho/godotenv/autoload"
+	"github.com/joho/godotenv"
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/resolvers"
-	"github.com/marcos-brito/booklist/internal/store"
-	ory "github.com/ory/client-go"
 )
 
-var oryClient *ory.APIClient
+func setupPostgres() {
+	db, err := conn.NewPostgresConnection()
+	if err != nil {
+		log.Fatalf("couldn't connect postgres: %s", err)
+	}
 
-func init() {
-	config := ory.NewConfiguration()
-	oryClient = ory.NewAPIClient(config)
+	conn.InitDatabase(db)
+	err = conn.Migrate(db)
+
+	if err != nil {
+		log.Fatalf("couldn't run migrations: %s", err)
+	}
+}
+
+func setupRedis() {
+	rdb := conn.NewRedisClient()
+	err := rdb.Ping(context.Background()).Err()
+
+	if err != nil {
+		log.Fatalf("couldn't connect to redis: %s", err)
+	}
+
+	conn.InitRedis(rdb)
 }
 
 func main() {
-	db, err := store.NewConnection()
+	err := godotenv.Load("../../.env")
 	if err != nil {
-		panic(fmt.Errorf("couldn't start the server: %s", err))
+		log.Fatalf("couldn't load .env")
 	}
 
-	store.With(db)
-	err = store.Migrate(db)
+	ory := conn.NewOryClient()
+	conn.InitOry(ory)
 
-	if err != nil {
-		panic(fmt.Errorf("couldn't run migrations: %s", err))
-	}
+	setupPostgres()
+	setupRedis()
 
 	router := http.NewServeMux()
 	graphql := handler.NewDefaultServer(resolvers.NewExecutableSchema(resolvers.Config{Resolvers: &resolvers.Resolver{}}))
@@ -41,11 +58,11 @@ func main() {
 
 	server := http.Server{
 		Addr:    ":8080",
-		Handler: auth.SessionMiddleware(router, oryClient),
+		Handler: auth.SessionMiddleware(router, conn.Ory),
 	}
 
 	err = server.ListenAndServe()
 	if err != nil {
-		panic(fmt.Errorf("couldn't start the server: %s", err))
+		log.Fatalf("couldn't start the server: %s", err)
 	}
 }

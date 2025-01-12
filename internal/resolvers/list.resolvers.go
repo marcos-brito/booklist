@@ -9,6 +9,7 @@ import (
 	"fmt"
 
 	"github.com/marcos-brito/booklist/internal/auth"
+	"github.com/marcos-brito/booklist/internal/conn"
 	"github.com/marcos-brito/booklist/internal/models"
 	"github.com/marcos-brito/booklist/internal/store"
 	"gorm.io/gorm"
@@ -16,7 +17,7 @@ import (
 
 // Books is the resolver for the books field.
 func (r *listResolver) Books(ctx context.Context, obj *models.List) ([]*models.Book, error) {
-	books, err := store.NewListStore(store.DB).FindBooks(obj.ID)
+	books, err := store.NewListStore(conn.DB).FindBooks(obj.ID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -26,7 +27,7 @@ func (r *listResolver) Books(ctx context.Context, obj *models.List) ([]*models.B
 
 // Owner is the resolver for the owner field.
 func (r *listResolver) Owner(ctx context.Context, obj *models.List) (*models.User, error) {
-	profile, err := store.NewUserStore(store.DB).FindFullProfileById(obj.ProfileID)
+	profile, err := store.NewUserStore(conn.DB).FindFullProfileById(obj.ProfileID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -54,7 +55,7 @@ func (r *mutationResolver) CreateList(ctx context.Context, name string, descript
 		*publish = false
 	}
 
-	list, err := store.NewListStore(store.DB).Create(name, description, *publish, ident.UUID)
+	list, err := store.NewListStore(conn.DB).Create(name, description, *publish, ident.UUID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -74,7 +75,7 @@ func (r *mutationResolver) DeleteList(ctx context.Context, id uint) (*models.Lis
 		return nil, err
 	}
 
-	list, err := store.NewListStore(store.DB).Delete(id)
+	list, err := store.NewListStore(conn.DB).Delete(id)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -94,7 +95,7 @@ func (r *mutationResolver) PublishList(ctx context.Context, id uint) (*models.Li
 		return nil, err
 	}
 
-	list, err := store.NewListStore(store.DB).Publish(id)
+	list, err := store.NewListStore(conn.DB).Publish(id)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -114,7 +115,7 @@ func (r *mutationResolver) UnpublishList(ctx context.Context, id uint) (*models.
 		return nil, err
 	}
 
-	list, err := store.NewListStore(store.DB).Unpublish(id)
+	list, err := store.NewListStore(conn.DB).Unpublish(id)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -129,7 +130,7 @@ func (r *mutationResolver) CloneList(ctx context.Context, id uint) (*models.List
 		return nil, ErrUnauthorized
 	}
 
-	listStore := store.NewListStore(store.DB)
+	listStore := store.NewListStore(conn.DB)
 	list, err := listStore.FindById(id)
 	if err != nil {
 		return nil, ErrWithOrInternal(gorm.ErrRecordNotFound, err, ErrBadId(id, "list"))
@@ -170,12 +171,12 @@ func (r *mutationResolver) AddToList(ctx context.Context, listID uint, bookID ui
 		return nil, err
 	}
 
-	_, err = store.NewBookStore(store.DB).FindById(bookID)
+	_, err = store.NewBookStore(conn.DB).FindById(bookID)
 	if err != nil {
 		return nil, ErrWithOrInternal(gorm.ErrRecordNotFound, err, ErrBadId(bookID, "book"))
 	}
 
-	list, err := store.NewListStore(store.DB).AddBook(listID, bookID)
+	list, err := store.NewListStore(conn.DB).AddBook(listID, bookID)
 	if err != nil {
 		return nil, ErrInternal
 	}
@@ -195,12 +196,12 @@ func (r *mutationResolver) RemoveFromList(ctx context.Context, listID uint, book
 		return nil, err
 	}
 
-	_, err = store.NewBookStore(store.DB).FindById(bookID)
+	_, err = store.NewBookStore(conn.DB).FindById(bookID)
 	if err != nil {
 		return nil, ErrWithOrInternal(gorm.ErrRecordNotFound, err, ErrBadId(bookID, "book"))
 	}
 
-	list, err := store.NewListStore(store.DB).RemoveBook(listID, bookID)
+	list, err := store.NewListStore(conn.DB).RemoveBook(listID, bookID)
 	if err != nil {
 		return nil, ErrInternal
 	}
